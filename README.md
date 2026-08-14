@@ -87,11 +87,35 @@ is what it is on the day. Notable findings: node `id` must be an integer while
 
 ## Limitations
 
-Static call graphs over a dynamic language are an over-approximation. Stated plainly:
+Static call graphs over a dynamic language are an over-approximation. Stated plainly,
+with measured numbers rather than adjectives.
 
-- **Handled** — static ESM/TS imports, direct calls, re-exports, barrel files.
-- **Not handled** — `require()` with non-literal arguments, `eval`, runtime
-  monkey-patching, reflection-based dispatch.
+**Handled** — ESM `import`/`export`, CommonJS `require`/`module.exports`, barrel
+files and `export *`, aliased re-exports, `this.method()` chains, namespace imports,
+constructor-typed locals (`const s = new Svc(); s.run()`), and module-scope callables
+produced by factories (`var merge = createAssigner(...)` — how much of npm is written).
+
+**Not handled** — `require()` with non-literal arguments, `eval`, runtime
+monkey-patching, and reflection-based dispatch.
+
+**Measured call-site binding** (`py scripts/bench_extract.py <repo>`):
+
+| Repo | Modules | Symbols | Bound | Unbound, dominated by |
+|---|---|---|---|---|
+| hono 4.13 | 383 | 2,492 | 16.5% | member calls on untyped receivers |
+| express 5.2 | 141 | 446 | 18.5% | member calls on untyped receivers |
+| lodash 4.17 | 1,046 | 3,708 | 37% | internal `_`-prefixed helpers |
+
+**Read that number correctly.** The unbound majority is `res.send()`, `arr.map()`,
+`console.log()` — calls on receivers whose type needs a TypeScript type checker, and
+which overwhelmingly terminate in built-ins rather than leading into dependencies.
+What Adit must bind for reachability to work is the **package boundary**, and those
+arrive as direct or namespace imports, which are bound: 1,688 external refs across 43
+packages in express, 1,258 across 57 in hono.
+
+Adit reports its own bind rate and the reasons for every unbound call. A tool that
+claimed 100% here would be lying.
+
 - When OSV gives a version range but no vulnerable symbol, Adit falls back to
   *"reaches the package's public API"* and **labels the result as such**.
 - Ingest is idempotent but not atomic — the engine has no explicit transactions. A

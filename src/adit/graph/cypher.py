@@ -19,7 +19,12 @@ import re
 # come from registry metadata and parsed source. This pattern covers every
 # character those builders can legitimately emit and nothing else -- notably no
 # quotes, backslashes, braces, newlines, or comment sequences.
-_SAFE_KEY = re.compile(r"^[A-Za-z0-9_./:@#^~+\-\[\]|]{1,512}$")
+#: `<` and `>` are permitted because Adit's own synthetic symbol names use them
+#: (`<module>`, `<anon@42>`, `<side-effect:./x>`). Neither character has any
+#: meaning inside a single-quoted Cypher string literal, and neither can occur
+#: in a JavaScript identifier -- which is exactly why they were chosen: a
+#: synthetic name can never collide with a real declaration.
+_SAFE_KEY = re.compile(r"^[A-Za-z0-9_./:@#^~+\-\[\]|<>]{1,512}$")
 
 _SAFE_IDENT = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 
