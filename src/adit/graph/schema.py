@@ -53,6 +53,9 @@ class Edge(StrEnum):
     MAINTAINS = "MAINTAINS"      # Identity -> Package
     ABOUT = "ABOUT"              # Claim   -> Entity
     SAME_AS = "SAME_AS"          # entity resolution
+    #: Advisory -> the specific Symbol it implicates. The target of every
+    #: reachability query; see ingest/symbols.py for how it is derived.
+    VULNERABLE_SYMBOL = "VULNERABLE_SYMBOL"
     #: The two halves of a reified fact. Traversals through a fact cost two
     #: hops, so `max_len` budgets must account for it.
     SUBJECT = "SUBJECT"          # Fact -> subject node

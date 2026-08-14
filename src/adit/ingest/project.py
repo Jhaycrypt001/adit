@@ -210,11 +210,38 @@ class Resolver:
         return None
 
 
+def _walk_sources(root: Path, max_files: int):
+    """Yield source files, pruning skipped directories *during* the walk.
+
+    `rglob("*")` then filtering means descending into `node_modules` and
+    enumerating every file in it before discarding them -- which on a project
+    with a populated dependency tree dominates parse time and looks like slow
+    parsing rather than a wasted walk. os.walk lets us prune in place.
+
+    Results are sorted per directory so ingest is deterministic: node ids are
+    hashes of keys, and "first declaration wins" for duplicate names.
+    """
+    yielded = 0
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if d not in _SKIP_DIRS)
+        for filename in sorted(filenames):
+            if Path(filename).suffix not in _BY_SUFFIX_KEYS:
+                continue
+            yield Path(dirpath) / filename
+            yielded += 1
+            if yielded >= max_files:
+                return
+
+
 def _read_package_json(root: Path) -> tuple[str, str]:
     try:
-        data = json.loads((root / "package.json").read_text("utf-8"))
+        # utf-8-sig, not utf-8: Windows-authored JSON routinely carries a BOM,
+        # and json.loads rejects it. Silently falling back to the directory name
+        # would mislabel every symbol key in the graph.
+        data = json.loads((root / "package.json").read_text("utf-8-sig"))
         return str(data.get("name") or root.name), str(data.get("version") or "0.0.0")
-    except (OSError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError) as exc:
+        log.warning("could not read %s/package.json (%s); using directory name", root, exc)
         return root.name, "0.0.0"
 
 
@@ -226,14 +253,10 @@ def analyse(root: Path, *, max_files: int = 20_000) -> ProjectGraph:
 
     # -- pass 1 ------------------------------------------------------------
     count = 0
-    for path in sorted(root.rglob("*")):
+    for path in _walk_sources(root, max_files):
         if count >= max_files:
             log.warning("stopped at max_files=%d", max_files)
             break
-        if not path.is_file() or path.suffix not in _BY_SUFFIX_KEYS:
-            continue
-        if any(part in _SKIP_DIRS for part in path.relative_to(root).parts):
-            continue
         info = parse_file(path, root)
         if info is None:
             continue

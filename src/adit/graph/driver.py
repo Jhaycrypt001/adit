@@ -56,12 +56,35 @@ class Hydra:
         token = token or os.environ.get("ADIT_BOLT_TOKEN", DEFAULT_TOKEN)
         self.max_retries = max_retries
         self._driver: Driver = GraphDatabase.driver(self.uri, auth=("neo4j", token))
+        # A single long-lived session, created lazily.
+        #
+        # Opening one per statement costs a Bolt handshake each time, which
+        # measured at roughly a second per ten statements -- enough that writing
+        # seven symbols took 7.5s and looked like a throughput problem rather
+        # than a connection-churn one. There are no explicit transactions in
+        # this engine, so one session is all that is needed.
+        self._session = None
 
     # -- lifecycle ---------------------------------------------------------
     def verify(self) -> None:
         self._driver.verify_connectivity()
 
+    def _get_session(self):
+        if self._session is None:
+            self._session = self._driver.session()
+        return self._session
+
+    def _drop_session(self) -> None:
+        """Discard a session after an error so the next call reconnects clean."""
+        if self._session is not None:
+            try:
+                self._session.close()
+            except Exception:  # noqa: BLE001 - already unwinding
+                pass
+            self._session = None
+
     def close(self) -> None:
+        self._drop_session()
         self._driver.close()
 
     def __enter__(self) -> Hydra:
@@ -82,9 +105,9 @@ class Hydra:
         delay = 0.25
         for attempt in range(1, self.max_retries + 1):
             try:
-                with self._driver.session() as session:
-                    return [r.data() for r in session.run(cypher, **params)]
+                return [r.data() for r in self._get_session().run(cypher, **params)]
             except (TransientError, ServiceUnavailable) as exc:
+                self._drop_session()
                 if attempt == self.max_retries:
                     raise
                 log.warning("transient (%s/%s): %s", attempt, self.max_retries, exc)
@@ -100,8 +123,7 @@ class Hydra:
         `algo.MSpaths` is the only construct that returns a traversable Path
         object, so it needs a result handler that does not flatten to dicts.
         """
-        with self._driver.session() as session:
-            return [r["path"] for r in session.run(cypher, **params)]
+        return [r["path"] for r in self._get_session().run(cypher, **params)]
 
     def run_batched(self, cypher: str, rows: Sequence[dict[str, Any]]) -> int:
         """Run an UNWIND statement over `rows`, chunked to the engine limit.
