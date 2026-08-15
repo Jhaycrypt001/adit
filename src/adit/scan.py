@@ -23,6 +23,7 @@ from .graph import Edge, Hydra, Queries, ReachPath
 from .graph.schema import AdvisoryClass
 from .ingest import lockfile
 from .ingest.binder import BindResult, bind
+from .ingest.deps_emit import emit_lockfile
 from .ingest.emit import emit, entrypoint_keys
 from .ingest.lockfile import LockGraph, ResolvedPackage
 from .ingest.osv import Advisory, OsvClient, classify
@@ -115,7 +116,15 @@ def scan(
     # -- B: exactly what was installed -------------------------------------
     lock = lockfile.load(root)
     log.info("stage B: %s", lock.summary())
-    t = mark("B lockfile", t)
+
+    # No package registry stamps a lockfile with an install date, so its own
+    # mtime is the best available signal for "when was this resolution valid
+    # from" without shelling out to git. A caller with a better timestamp (a
+    # commit date, a CI build time) can override by writing the fact directly.
+    lockfile_path = lockfile.find_lockfile(root)
+    observed_at = int(lockfile_path.stat().st_mtime) if lockfile_path else int(time.time())
+    emit_lockfile(lock, hydra, service_name=repo.package_name, observed_at=observed_at)
+    t = mark("B write deps", t)
 
     # -- C: advisories ------------------------------------------------------
     specs = sorted({(p.name, p.version) for p in lock.packages.values()})

@@ -84,6 +84,18 @@ MATCH (s {id: X})-[:DEPENDED_ON_BY*1..5]->(d) -- works
 
 Single-hop reverse (`<-[:R]-`, no `*`) is fine; only transitive reverse is not.
 
+**Chaining two single-hop reverse edges from one fixed anchor is a separate,
+silent trap.** `(a {id: X})<-[:R1]-(b)<-[:R2]-(c)` executes without error and
+returns zero rows even when the data matches, while the semantically
+equivalent split-MATCH form fails identically -- both confirmed with
+`scripts/chain_direction.py`. `(a {id: X})<-[:R1]-(b)-[:R2]->(c)`, one reverse
+hop followed by one forward hop, works. This is the one finding in this whole
+contract that gives **no error text at all** to catch it — a two-reverse-hop
+chain simply looks like "no matches", which is why `queries.py` documents each
+multi-hop query's direction reasoning inline, and why `exposed_services()` has
+a paired positive/negative integration test rather than relying on the query
+executing without exception.
+
 Since blast radius **is** transitive reverse closure, Adit materialises the inverse
 edge at ingest (`schema.INVERSE_OF`) and traverses it forward. Batched edges cost
 ~10,000/sec, so this is the cheap answer rather than a compromise — and it buys

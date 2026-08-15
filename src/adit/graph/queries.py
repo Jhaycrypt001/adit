@@ -209,6 +209,42 @@ class Queries:
             end=window_end,
         )
 
+    def exposed_services(
+        self,
+        release_key: str,
+        window_start: int = 0,
+        window_end: int = 2**62,
+    ) -> list[dict[str, Any]]:
+        """Which services resolved this exact release, and when.
+
+        This is the incident-response question for an install-time compromise:
+        not "what depends on lodash" (everything does) but "which of *my*
+        services actually pulled down the bad bits, and was that during the
+        window it was live".
+
+        Both hops are single-hop, non-variable-length, so the transitive-reverse
+        restriction that forced materialised inverse edges for blast radius does
+        not apply -- but direction still matters in a way worth recording.
+        SUBJECT and OBJECT both point forward, Fact -> node, so reaching a Fact
+        from its *object* is a reverse hop and reaching the *subject* from that
+        Fact is a forward hop. Chaining two REVERSE hops instead -- the natural
+        way to write "walk backward twice" -- executes without error but
+        silently returns zero rows; confirmed with scripts/chain_direction.py.
+        Nothing in the engine's error text would have caught that, which is why
+        the paired positive/negative test in test_deps_e2e.py exists.
+        """
+        return self.hydra.run(
+            f"MATCH (rel {{id: {node_id(release_key)}}})<-[:{Edge.OBJECT.value}]-"
+            f"(f:{Label.FACT.value})-[:{Edge.SUBJECT.value}]->(s) "
+            f"WHERE f.kind = $kind AND f.valid_from < $end AND f.valid_to > $start "
+            f"RETURN s.key AS service, f.valid_from AS valid_from, "
+            f"f.observed_at AS observed_at, f.source AS source "
+            f"ORDER BY f.valid_from",
+            kind=FactKind.RESOLUTION.value,
+            start=window_start,
+            end=window_end,
+        )
+
     # -- helpers -----------------------------------------------------------
     def key_exists(self, key: str) -> bool:
         rows = self.hydra.run(f"MATCH (n {{id: {node_id(key)}}}) RETURN n.key AS key")

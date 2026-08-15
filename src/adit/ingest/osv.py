@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -164,6 +165,23 @@ class OsvClient:
     def __exit__(self, *exc: object) -> None:
         self.close()
 
+    def _post(self, path: str, payload: dict, *, retries: int = 3) -> httpx.Response:
+        """POST with retry. OSV is free and unauthenticated, which also means
+        no SLA -- a dropped connection here should not kill a live scan."""
+        delay = 0.5
+        for attempt in range(1, retries + 1):
+            try:
+                resp = self._client.post(path, json=payload)
+                resp.raise_for_status()
+                return resp
+            except (httpx.TransportError, httpx.HTTPStatusError) as exc:
+                if attempt == retries:
+                    raise
+                log.warning("OSV %s attempt %d/%d failed: %s", path, attempt, retries, exc)
+                time.sleep(delay)
+                delay *= 2
+        raise AssertionError("unreachable")
+
     def query_batch(self, specs: list[tuple[str, str]]) -> dict[tuple[str, str], list[str]]:
         """Map (name, version) -> advisory ids. One request per BATCH_LIMIT."""
         out: dict[tuple[str, str], list[str]] = {}
@@ -175,8 +193,7 @@ class OsvClient:
                     for n, v in chunk
                 ]
             }
-            resp = self._client.post("/v1/querybatch", json=payload)
-            resp.raise_for_status()
+            resp = self._post("/v1/querybatch", payload)
             results = resp.json().get("results") or []
             for spec, result in zip(chunk, results, strict=False):
                 ids = [v["id"] for v in (result.get("vulns") or []) if "id" in v]
@@ -184,14 +201,20 @@ class OsvClient:
                     out[spec] = ids
         return out
 
-    def fetch(self, advisory_id: str) -> Advisory | None:
-        try:
-            resp = self._client.get(f"/v1/vulns/{advisory_id}")
-            resp.raise_for_status()
-        except httpx.HTTPError as exc:
-            log.warning("could not fetch %s: %s", advisory_id, exc)
-            return None
-        return _parse(resp.json())
+    def fetch(self, advisory_id: str, *, retries: int = 3) -> Advisory | None:
+        delay = 0.5
+        for attempt in range(1, retries + 1):
+            try:
+                resp = self._client.get(f"/v1/vulns/{advisory_id}")
+                resp.raise_for_status()
+                return _parse(resp.json())
+            except httpx.HTTPError as exc:
+                if attempt == retries:
+                    log.warning("could not fetch %s: %s", advisory_id, exc)
+                    return None
+                time.sleep(delay)
+                delay *= 2
+        return None
 
     def fetch_many(self, ids: list[str]) -> dict[str, Advisory]:
         """Fetch unique advisories. One advisory commonly affects many packages."""
