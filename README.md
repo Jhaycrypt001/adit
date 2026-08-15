@@ -65,6 +65,21 @@ Three query shapes, and nothing else:
 - **Q2 blast radius** — reverse transitive closure from a compromised release.
 - **Q3 temporal validity** — did this hold *during the window the bad version was live*?
 
+### Measured: `algo.MSpaths` vs client-side fan-out
+
+Answering "which of my services reach any of these advisories" the naive way is
+`len(entrypoints) x len(targets)` separate queries. `algo.MSpaths` resolves the
+whole batch in one server-side call. Measured on identical data, both methods
+finding the identical set of reachable pairs (`py scripts/bench_traversal.py`):
+
+| | calls | wall clock |
+|---|---|---|
+| `algo.MSpaths` | 1 | 0.94s |
+| client fan-out | 900 | 44.5s |
+
+**47.6x**, and the gap widens with scale — at a realistic 200 services x 47
+advisories (9,400 pairs), fan-out alone projects past 7 minutes.
+
 Full design, and the measured engine contract it is written against, in
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
