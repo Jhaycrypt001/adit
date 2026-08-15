@@ -102,6 +102,33 @@ edge at ingest (`schema.INVERSE_OF`) and traverses it forward. Batched edges cos
 backward slicing for free: *what transitively calls this function*, i.e. what breaks
 if I change it.
 
+### A bare id match is not a safe existence check
+
+`MATCH (n {id: X}) RETURN n.key` returns **one row with every property null**
+for an `X` that was never written — not zero rows. Confirmed against five
+fresh, cryptographically random 62-bit integers guaranteed never to have been
+used as a node id: every single one "matched". No error, no warning — the
+result silently looks exactly like a real (if oddly empty) node.
+
+The defect is narrow but exactly hits the one query whose entire job is
+"does this exist": `Queries.key_exists()`, used to validate a CLI/MCP argument
+before running a real query against it. Every *traversal* query in `queries.py`
+is unaffected — `MATCH (n {id: X})-[:REL]->(m)` from a nonexistent `X`
+correctly returns zero rows in every one of them, confirmed across 79 passing
+tests before this was found. The gap is specifically a bare vertex-only
+pattern with no relationship attached, consistent with the engine treating the
+id space as dense and pre-allocated (plausible given the CSC/GraphBLAS
+topology index) rather than sparse.
+
+**Fix:** `WHERE n.key = n.key`. Cypher's three-valued logic makes `NULL = NULL`
+evaluate to false rather than true, which filters the phantom row out without
+needing `IS NOT NULL` (not in the supported surface — see below) or a label
+filter (which would work too, but `key_exists()` is intentionally label-agnostic
+since it validates Service, Release and Symbol keys alike).
+
+`WHERE ... IS NOT NULL` is rejected outright: `"WHERE currently supports
+boolean combinations of property comparisons"`.
+
 ### The one thing that returns a renderable path
 
 `RETURN` cannot project `nodes(p)`. But `algo.MSpaths` yields a **fully hydrated

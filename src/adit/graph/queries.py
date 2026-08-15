@@ -247,7 +247,26 @@ class Queries:
 
     # -- helpers -----------------------------------------------------------
     def key_exists(self, key: str) -> bool:
-        rows = self.hydra.run(f"MATCH (n {{id: {node_id(key)}}}) RETURN n.key AS key")
+        """Does a node with this canonical key exist?
+
+        `MATCH (n {id: X}) RETURN n.key` is NOT safe for this: for an id that
+        was never written, the engine returns one row with every property
+        null, rather than zero rows -- a bare id-only pattern with no attached
+        relationship behaves as if the id space were dense and pre-allocated.
+        Every traversal query is immune (`-[:REL]->` from a nonexistent anchor
+        correctly yields zero rows, confirmed across every query in this file),
+        so this is not a general correctness problem -- but it means naive
+        existence checks silently always return True. Confirmed with
+        `secrets.randbits(62)` against five fresh, guaranteed-unused ids, all
+        of which "matched". See ARCHITECTURE.md.
+
+        `n.key = n.key` forces the comparison to evaluate, and Cypher's
+        three-valued logic makes NULL = NULL evaluate to false rather than
+        true, which is what filters the phantom row out.
+        """
+        rows = self.hydra.run(
+            f"MATCH (n {{id: {node_id(key)}}}) WHERE n.key = n.key RETURN n.key AS key"
+        )
         return bool(rows)
 
     def neighbours(self, key: str, rel: Edge, *, limit: int = 100) -> list[str]:
