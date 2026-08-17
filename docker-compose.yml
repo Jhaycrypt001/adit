@@ -6,17 +6,71 @@
 #
 #   docker compose up -d
 #   py scripts/probe.py
+#
+# `docker compose up -d` must work on a genuinely empty clone with nothing else
+# done by hand first. It didn't, on the first four attempts, until this file
+# reached its current shape -- each failure found by actually wiping local
+# state and re-running the documented command, not by reasoning about it:
+#
+# 1. HydraDB does not create its own storage/cache directories or auth-token
+#    file on first launch -- it expects LOCAL_PATH and GRAPH_AUTH_TOKEN_FILE to
+#    already exist and fails outright if they don't ("UnableToCanonicalize ...
+#    No such file or directory"). They had existed since day one because they
+#    were created by hand during initial setup, and that step was never
+#    captured anywhere -- so `init` creates them.
+# 2. A host BIND MOUNT (`./hydradb-data:/data`) plus `chmod` inside the
+#    container looked like a fix but was not reliable: on Windows Docker
+#    Desktop, a bind mount bridges NTFS (no Unix permission bits at all)
+#    through to the container, and `chmod` from one container does not
+#    reliably propagate to what a *second* container sees at the same host
+#    path -- `init` reported success, but hydradb still failed deep inside a
+#    write with "Unable to create dir .../_writer_leases/v2: Permission
+#    denied (os error 13)". Switched to a NAMED VOLUME, which Docker manages
+#    on a real Linux-backed filesystem on every host OS.
+# 3. The named volume alone did not fix it either -- `docker exec` into the
+#    running container found `/data` itself world-writable (the `init`
+#    chmod took), but `/data/store` had reverted to `root:root` mode 0755.
+#    HydraDB's own entrypoint runs as root and recreates/resets its data
+#    directory as part of its own startup, independent of what `init` set up
+#    a moment earlier -- and the actual `graph-node` process then drops to
+#    `uid=10001(graph)`, discovered with `docker exec ... id`, which cannot
+#    write into a root-owned 0755 directory. This is exactly what the
+#    upstream README's own `docker run --user "$(id -u):$(id -g)"` example
+#    exists to avoid, and that flag has no compose equivalent that means the
+#    same thing across hosts -- so pinned `user:` to the image's own uid
+#    below instead, so the entrypoint never runs as root in the first place
+#    and can't reset ownership out from under `init`.
 
 services:
+  init:
+    image: alpine:3.20
+    command: >
+      sh -c "mkdir -p /data/store /data/cache &&
+             chown -R 10001:10001 /data/store /data/cache &&
+             chmod -R 0777 /data/store /data/cache &&
+             ([ -f /data/auth-token ] || printf '%s\n' 'local-development-token-32-bytes' > /data/auth-token) &&
+             chown 10001:10001 /data/auth-token"
+    volumes:
+      - hydra_data:/data
+
   hydradb:
     image: ghcr.io/hydra-db/hydradb:latest
     container_name: adit-hydradb
+    # Matches the "graph" user baked into the image (uid=10001, gid=10001;
+    # confirmed with `docker exec adit-hydradb id`). Runs the ENTIRE
+    # container lifecycle as this user, never as root, so nothing in the
+    # entrypoint can reset /data/store's ownership back to root the way it
+    # did without this line -- see the note above.
+    user: "10001:10001"
+    depends_on:
+      init:
+        condition: service_completed_successfully
     ports:
       - "7687:7687"   # Bolt  - the driver connection
       - "8443:8443"   # HTTP JSON query API
       - "9090:9090"   # admin / metrics / readyz
     volumes:
-      - ./hydradb-data:/data
+      - hydra_data:/data
     environment:
       CLOUD_PROVIDER: local
       LOCAL_PATH: /data/store
@@ -33,8 +87,17 @@ services:
       # Deep traversals recurse hard; the upstream quickstart sets 32MB.
       RUST_MIN_STACK: "33554432"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8443/healthz || exit 1"]
+      # No curl or wget in the image (Ubuntu 24.04 base, confirmed by
+      # inspection) -- a curl-based healthcheck silently never succeeds,
+      # which is worse than no healthcheck: it reports "unhealthy" forever
+      # while the service works fine, and that false signal sat unnoticed
+      # for hours before this was checked directly. bash's /dev/tcp needs
+      # nothing extra and bash is present in the image.
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8443' || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 20
       start_period: 10s
+
+volumes:
+  hydra_data:

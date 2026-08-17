@@ -138,8 +138,22 @@ allowed to block the demo.
   by `(source_tier DESC, valid_from DESC)`, and the fixture is rigged so a
   recency-only sort would pick the WRONG source. First multi-column `ORDER BY`
   this project relied on — confirmed live before building on it.
+- ✅ **Cold-start verification** — and it caught a real, would-have-failed-on-
+  camera defect. `docker compose up -d` on a genuinely wiped state (containers
+  *and* named volume removed, not just restarted) failed four different ways
+  before it actually worked: missing store/cache/auth-token paths HydraDB
+  itself never creates; a chmod that doesn't reliably cross containers on a
+  Windows bind mount; a named volume that fixed the mount but not the
+  permission, because HydraDB's own entrypoint runs as root and resets
+  `/data/store` back to root-owned 0755 on every boot; fixed by pinning the
+  `hydradb` service to run as its actual internal user (`uid=10001`,
+  discovered via `docker exec ... id`) so its entrypoint never touches root
+  in the first place. Full write-up in `docker-compose.yml`'s own header
+  comment. Verified end to end on a container 14 seconds old: `adit trace`
+  reproduced the exact known-correct result (2 actionable, 3 not reachable),
+  and the full test suite (115/115) passed against the same cold instance.
 - ⬜ **Feature freeze. No exceptions.** — next up
-- ⬜ README/ARCHITECTURE final pass, cold-start verification on a clean machine
+- ⬜ README/ARCHITECTURE final pass
 - ⬜ Repo public, Apache-2.0, AGPL boundary stated (already written into README
   §"Licence" — just needs the repo actually made public)
 
