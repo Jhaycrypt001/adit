@@ -245,6 +245,31 @@ class Queries:
             end=window_end,
         )
 
+    def claim_as_of(
+        self, entity_key: str, subject: str, as_of: int
+    ) -> dict[str, Any] | None:
+        """What was true about `subject` for this entity, as of `as_of`?
+
+        This is Track 3's "knowledge update" question answered with Q3's exact
+        query shape -- a range filter on a bitemporal quad, `ORDER BY ...
+        DESC LIMIT 1` picking the most recent still-valid claim -- proving the
+        same primitive that answers "was this lockfile resolution live during
+        the compromise window" also answers "what was my personal best as of
+        this date, given it changed between two sessions". One fixed-source
+        hop (Entity -[:ASSERTS]-> Claim), not a new query.
+        """
+        rows = self.hydra.run(
+            f"MATCH (e {{id: {node_id(entity_key)}}})-[:{Edge.ASSERTS.value}]->"
+            f"(c:{Label.CLAIM.value}) "
+            f"WHERE c.subject = $subject AND c.valid_from <= $as_of AND c.valid_to > $as_of "
+            f"RETURN c.object AS object, c.valid_from AS valid_from, "
+            f"c.source AS source, c.text AS text "
+            f"ORDER BY c.valid_from DESC LIMIT 1",
+            subject=subject,
+            as_of=as_of,
+        )
+        return rows[0] if rows else None
+
     # -- helpers -----------------------------------------------------------
     def key_exists(self, key: str) -> bool:
         """Does a node with this canonical key exist?

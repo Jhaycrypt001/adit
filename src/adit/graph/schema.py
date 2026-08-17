@@ -53,6 +53,11 @@ class Edge(StrEnum):
     MAINTAINS = "MAINTAINS"      # Identity -> Package
     ABOUT = "ABOUT"              # Claim   -> Entity
     SAME_AS = "SAME_AS"          # entity resolution
+    #: Entity/Episode -> Claim. Claims carry their own bitemporal quad directly
+    #: (see ingest/memory.py) rather than through a separate Fact indirection,
+    #: so "the current value" is one fixed-source hop with a range filter --
+    #: the same query shape as Q3, not a new primitive.
+    ASSERTS = "ASSERTS"
     #: Advisory -> the specific Symbol it implicates. The target of every
     #: reachability query; see ingest/symbols.py for how it is derived.
     VULNERABLE_SYMBOL = "VULNERABLE_SYMBOL"

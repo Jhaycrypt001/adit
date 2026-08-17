@@ -343,6 +343,53 @@ Nothing else in the codebase builds Cypher by concatenation.
 
 ---
 
+## 6a. Track 3 adapter: the bitemporal claim proven on a second domain
+
+`ingest/memory.py` maps LongMemEval chat sessions onto the same kernel, to
+prove the central claim rather than assert it: Q3's exact shape -- a range
+filter on a bitemporal quad, `ORDER BY valid_from DESC LIMIT 1` -- answers
+Track 2's "was this lockfile resolution live during the compromise window"
+and Track 3's "what did I say my personal best was" with the same primitive.
+
+One deliberate deviation from the original design: **`Claim` nodes carry their
+own `valid_from`/`valid_to`/`observed_at`/`source`/`confidence` directly**,
+rather than through a separate reified `Fact` indirection with `SUBJECT`/
+`OBJECT` edges. The reason is §3's direction-chaining trap: answering "the
+current value for this owner" through a `Fact` indirection needs a three-hop
+mixed-direction chain (`Entity -> Episode <- SUBJECT - Fact -> OBJECT ->
+Claim`), and only two-hop chains have been proven safe. Putting the quad
+directly on `Claim` and connecting it with one `Entity -[:ASSERTS]-> Claim`
+edge keeps the query to a single fixed-source hop with a property filter --
+a shape already exercised by every other query in this file. The lesson
+generalises: prefer the fact-carrying node be reachable in one hop from
+whatever you will anchor the query on, even if that means duplicating the
+quad's shape across two node types instead of centralising it in one.
+
+Extraction is real and narrow, not fabricated to fit the benchmark: one
+pattern family (a named quantity with a value and optional unit) run against
+raw session text, with **no access to the dataset's own answer-key labels** --
+using those would make the demonstration circular. Verified against a real
+downloaded item (`tests/fixtures/longmemeval_sample.json`, a genuine
+knowledge-update case: a runner states a personal-best 5K time of 27:12,
+then a new personal best of 25:50 two sessions later). The extractor labels
+the subject "time", not "personal best" -- the words "personal best" and the
+number are not adjacent in the real sentence, and the pattern anchors on the
+nearest preceding noun. This is reported honestly rather than rounded up: the
+value extracted is exactly right, and the test fixture asserts the subject
+label the heuristic actually produces, not the one that would look best.
+
+The reachability engine's answer, queried as of three different dates,
+against the same two real sessions:
+
+| Query date | Answer | Why |
+|---|---|---|
+| before either session | none | the query-level abstention case: no claim yet exists |
+| between the two sessions | `27:12` | what was true *then*, not what became true later |
+| after both sessions | `25:50` | the current value -- the update took effect |
+
+The middle row is the one that proves bitemporal, not merely "latest wins":
+getting it backwards would mean Adit can only state the present, not history.
+
 ## 7. Stated limitations
 
 Static call graphs over a dynamic language are an **over-approximation**. Declared
