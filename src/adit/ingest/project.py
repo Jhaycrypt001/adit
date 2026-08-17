@@ -35,10 +35,27 @@ log = logging.getLogger(__name__)
 _EXTENSIONS = (".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs")
 _INDEXES = tuple(f"index{ext}" for ext in _EXTENSIONS)
 
+#: Pruned when parsing a project's OWN repository (stage A): these hold
+#: generated output that would double-count alongside the source that produced
+#: it, or tooling caches that are never real call-graph edges.
 _SKIP_DIRS = {
     "node_modules", ".git", "dist", "build", "out", "coverage",
     ".next", ".turbo", ".cache", "vendor", "__pycache__",
 }
+
+#: Pruned when parsing a DEPENDENCY's own package on disk (stage D). Deliberately
+#: excludes dist/build/out: most published npm packages ship ONLY compiled
+#: output, frequently placed under a directory named exactly that, with no
+#: parallel "real" source anywhere else in the tarball -- there is nothing to
+#: double-count. Skipping them the way stage A does silently zeroes out the
+#: package's entire public surface. Found on uuid@8.3.2: node_modules/uuid's
+#: only files are under dist/esm-browser and dist/esm-node; with the stage-A
+#: skip set applied, parsing it found 1 module and 0 exported symbols, and the
+#: OSV advisory for it fell through to "vulnerable symbol not located" --
+#: indistinguishable, in the old code, from a path Adit had actually searched
+#: and found absent. That is a materially different claim and must not be
+#: reported the same way; see Finding.status in scan.py.
+_DEPENDENCY_SKIP_DIRS = {"node_modules", ".git", "coverage", ".cache", "__pycache__"}
 
 
 @dataclass(slots=True)
@@ -210,7 +227,7 @@ class Resolver:
         return None
 
 
-def _walk_sources(root: Path, max_files: int):
+def _walk_sources(root: Path, max_files: int, skip_dirs: set[str]):
     """Yield source files, pruning skipped directories *during* the walk.
 
     `rglob("*")` then filtering means descending into `node_modules` and
@@ -223,7 +240,7 @@ def _walk_sources(root: Path, max_files: int):
     """
     yielded = 0
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(d for d in dirnames if d not in _SKIP_DIRS)
+        dirnames[:] = sorted(d for d in dirnames if d not in skip_dirs)
         for filename in sorted(filenames):
             if Path(filename).suffix not in _BY_SUFFIX_KEYS:
                 continue
@@ -245,15 +262,28 @@ def _read_package_json(root: Path) -> tuple[str, str]:
         return root.name, "0.0.0"
 
 
-def analyse(root: Path, *, max_files: int = 20_000) -> ProjectGraph:
-    """Parse and resolve a repository into a bindable call graph."""
+def analyse(
+    root: Path, *, max_files: int = 20_000, is_dependency: bool = False
+) -> ProjectGraph:
+    """Parse and resolve a repository into a bindable call graph.
+
+    `is_dependency=True` (stage D, parsing a package pulled in from
+    `node_modules`) does not prune `dist`/`build`/`out`: most published npm
+    packages ship only compiled output, often placed directly under a
+    directory with exactly one of those names, and there is no parallel
+    "real" source elsewhere to double-count against. The default (stage A,
+    parsing the project under analysis) still prunes them, since there a
+    generated `dist` sitting alongside its own `src` genuinely would be a
+    duplicate of code already counted.
+    """
     root = root.resolve()
+    skip_dirs = _DEPENDENCY_SKIP_DIRS if is_dependency else _SKIP_DIRS
     name, version = _read_package_json(root)
     graph = ProjectGraph(root=root, package_name=name, package_version=version)
 
     # -- pass 1 ------------------------------------------------------------
     count = 0
-    for path in _walk_sources(root, max_files):
+    for path in _walk_sources(root, max_files, skip_dirs):
         if count >= max_files:
             log.warning("stopped at max_files=%d", max_files)
             break

@@ -166,3 +166,44 @@ def test_bind_rate_is_reported(graph):
 
 def test_node_modules_is_never_walked(graph):
     assert not any("node_modules" in m for m in graph.modules)
+
+
+# -- dist/ handling: consumer repo vs. dependency package --------------------
+#
+# Found on real npm: uuid@8.3.2's entire published package lives under
+# dist/esm-browser and dist/esm-node, with nothing at the top level. Pruning
+# dist/build/out is correct for a project's OWN repo (its dist/ is generated
+# output duplicating src/) but wrong for a dependency, where dist/ is very
+# often the only source that exists at all. Getting this backwards silently
+# zeroed a package's whole public surface -- see project.py's analyse().
+
+
+def _write(root: Path, rel: str, content: str) -> None:
+    p = root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(content, encoding="utf-8")
+
+
+def test_default_analysis_prunes_dist_for_a_consumer_repo(tmp_path):
+    _write(tmp_path, "src/index.ts", "export function real(): void {}")
+    _write(tmp_path, "dist/index.js", "exports.real = function() {};")
+    _write(tmp_path, "package.json", '{"name": "consumer", "version": "1.0.0"}')
+
+    graph = analyse(tmp_path)  # is_dependency defaults to False
+    assert "src/index.ts" in graph.modules
+    assert "dist/index.js" not in graph.modules
+
+
+def test_dependency_analysis_does_not_prune_dist(tmp_path):
+    """The uuid@8.3.2 case, reproduced: only dist/ has any source at all."""
+    _write(tmp_path, "dist/esm-node/index.js",
+           "export function v4() { return uuidV4Impl(); }")
+    _write(tmp_path, "package.json", '{"name": "uuid-like", "version": "8.3.2"}')
+
+    default = analyse(tmp_path, is_dependency=False)
+    assert default.modules == {}, "default settings would silently find nothing"
+
+    dep = analyse(tmp_path, is_dependency=True)
+    assert "dist/esm-node/index.js" in dep.modules
+    assert "v4" in dep.modules["dist/esm-node/index.js"].symbols
+    assert dep.modules["dist/esm-node/index.js"].symbols["v4"].exported

@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
 from .graph import Edge, Hydra, Queries, ReachPath
@@ -33,6 +34,24 @@ from .ingest.symbols import SymbolResolution
 log = logging.getLogger(__name__)
 
 
+class Status(StrEnum):
+    """Three distinct claims, not two -- collapsing them is the overclaim.
+
+    REACHABLE and NOT_REACHABLE are both searches that completed: MSpaths ran
+    against real symbol keys and returned a path, or returned none. UNRESOLVED
+    means the search never ran at all, because there was no symbol key to
+    search for -- found on express's uuid@8.3.2 dependency, whose entire
+    published source lives under `dist/` and was, before that was fixed,
+    invisible to the parser. Reporting that as "not reachable" would have
+    claimed a search that never happened; the CLI and MCP renderers must never
+    fold UNRESOLVED into either reachable outcome.
+    """
+
+    REACHABLE = "reachable"
+    NOT_REACHABLE = "not_reachable"
+    UNRESOLVED = "unresolved"
+
+
 @dataclass(slots=True)
 class Finding:
     """One advisory, answered."""
@@ -40,18 +59,22 @@ class Finding:
     advisory: Advisory
     package: ResolvedPackage
     klass: AdvisoryClass
-    reachable: bool
+    status: Status
     paths: list[ReachPath] = field(default_factory=list)
     blast: list[str] = field(default_factory=list)
     resolution: SymbolResolution | None = None
     reason: str = ""
 
     @property
+    def reachable(self) -> bool:
+        return self.status is Status.REACHABLE
+
+    @property
     def actionable(self) -> bool:
         """Worth a human's attention today."""
         if self.klass is AdvisoryClass.INSTALL_TIME:
             return True  # it already ran
-        return self.reachable
+        return self.status is not Status.NOT_REACHABLE  # REACHABLE or UNRESOLVED
 
     @property
     def confidence(self) -> float:
@@ -165,18 +188,24 @@ def scan(
             findings.append(
                 Finding(
                     advisory=advisory, package=pkg, klass=advisory.klass,
-                    reachable=True, blast=blast, resolution=res,
+                    status=Status.REACHABLE, blast=blast, resolution=res,
                     reason="install script executes regardless of imports",
                 )
             )
             continue
 
         if not bound.symbol_keys:
+            # Not the same claim as NOT_REACHABLE: no search ran, because there
+            # was no symbol key to search for. Reporting this as "not
+            # reachable" would claim a search that never happened -- the exact
+            # failure mode found on express's uuid@8.3.2 before the dist/
+            # skip-dir bug was fixed (see project.py's analyse() docstring).
             findings.append(
                 Finding(
                     advisory=advisory, package=pkg, klass=advisory.klass,
-                    reachable=False, resolution=res,
-                    reason="vulnerable symbol not located in the installed package",
+                    status=Status.UNRESOLVED, resolution=res,
+                    reason="vulnerable symbol not located in the installed package "
+                    "-- reachability was not checked",
                 )
             )
             continue
@@ -185,7 +214,8 @@ def scan(
         findings.append(
             Finding(
                 advisory=advisory, package=pkg, klass=advisory.klass,
-                reachable=result.reachable, paths=result.paths, resolution=res,
+                status=Status.REACHABLE if result.reachable else Status.NOT_REACHABLE,
+                paths=result.paths, resolution=res,
                 reason="" if result.reachable else result.explain_absence(),
             )
         )

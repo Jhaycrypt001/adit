@@ -100,6 +100,34 @@ is what it is on the day. Notable findings: node `id` must be an integer while
 `algo.MSpaths` matches on strings; batched edges cannot carry properties; and
 `algo.MSpaths` is the **only** construct that returns a renderable path.
 
+## Run on a real, unmodified repository
+
+Not a fixture. Cloned [expressjs/express](https://github.com/expressjs/express)
+at 5.2.1, installed it exactly as published, and pointed `adit trace` at it
+with nothing changed:
+
+```
+express@5.2.1
+  141 modules, 435 symbols, 379 internal calls, 1,688 external refs
+  403 packages, 639 dependency edges, 44 direct
+
+  4 advisories affecting this repo
+  0 ACTIONABLE
+  4 not reachable
+```
+
+`npm audit` flags all four. Adit traced every one of them and found no call
+path from any of express's 56 entrypoints. Checking why: none of the three
+implicated packages (`diff`, `serialize-javascript`, `uuid`) appear anywhere
+in express's own `package.json` or source — `npm ls` places all three several
+levels inside `mocha` and `nyc`, express's *test runner and coverage tool*.
+Code that ships in a deployed Express app never executes any of it.
+
+This is the ordinary case, not a cherry-picked one: most CVE noise in a real
+project lives exactly here, in dev tooling nowhere near the request path. A
+scanner that only checks "is the package installed" cannot tell the
+difference; Adit ran a real graph search and can.
+
 ## Limitations
 
 Static call graphs over a dynamic language are an over-approximation. Stated plainly,

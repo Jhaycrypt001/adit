@@ -111,7 +111,12 @@ def bind(
             result.packages_skipped += 1
             continue
 
-        dep = analyse(directory)
+        # is_dependency=True: most published npm packages ship only compiled
+        # output, often placed under dist/build/out with no parallel source to
+        # double-count against -- pruning those (stage A's policy for the
+        # project's own repo) silently zeroed uuid@8.3.2's entire public
+        # surface. See project.py's analyse() docstring.
+        dep = analyse(directory, is_dependency=True)
         # The lockfile is authoritative for identity; a dependency's own
         # package.json can disagree, and node keys must match what stage B wrote.
         dep.package_name, dep.package_version = pkg.name, pkg.version

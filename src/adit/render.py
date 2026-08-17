@@ -9,7 +9,7 @@ was never the question for it.
 from __future__ import annotations
 
 from .graph.schema import AdvisoryClass
-from .scan import Finding, ScanReport
+from .scan import Finding, ScanReport, Status
 
 RESET = "\033[0m"
 BOLD = "\033[1m"
@@ -26,8 +26,16 @@ def _c(code: str, text: str, *, color: bool) -> str:
 
 def render_finding(f: Finding, *, color: bool = True, max_paths: int = 2) -> str:
     lines: list[str] = []
-    mark = "!" if f.klass is AdvisoryClass.INSTALL_TIME else "x"
-    tint = RED if f.klass is AdvisoryClass.INSTALL_TIME else YELLOW
+    if f.klass is AdvisoryClass.INSTALL_TIME:
+        mark, tint = "!", RED
+    elif f.status is Status.UNRESOLVED:
+        # Deliberately not the same glyph as a confirmed path: this row means
+        # "Adit could not determine the vulnerable symbol", not "Adit searched
+        # and found a route to it". Collapsing the two would claim a search
+        # that never ran -- see scan.py's Status docstring.
+        mark, tint = "?", CYAN
+    else:
+        mark, tint = "x", YELLOW
 
     header = f"{mark} {f.advisory.id}  {f.package.spec}  [{f.klass.value}]"
     lines.append(_c(tint, header, color=color))
@@ -45,6 +53,10 @@ def render_finding(f: Finding, *, color: bool = True, max_paths: int = 2) -> str
                 lines.append(f"      - {dep}")
             if len(f.blast) > 6:
                 lines.append(f"      ... and {len(f.blast) - 6} more")
+        return "\n".join(lines)
+
+    if f.status is Status.UNRESOLVED:
+        lines.append(_c(CYAN, f"    {f.reason}", color=color))
         return "\n".join(lines)
 
     for path in f.paths[:max_paths]:
@@ -75,8 +87,10 @@ def render_report(report: ScanReport, *, color: bool = True, max_paths: int = 2)
     lines.append("")
 
     hot, cold = report.reachable, report.not_reachable
+    unresolved = sum(1 for f in hot if f.status is Status.UNRESOLVED)
     lines.append(_c(BOLD, f"  {len(report.findings)} advisories affecting this repo", color=color))
-    lines.append(_c(RED if hot else GREEN, f"  {len(hot)} ACTIONABLE", color=color))
+    tail = f"  ({unresolved} unresolved -- symbol not located, not checked)" if unresolved else ""
+    lines.append(_c(RED if hot else GREEN, f"  {len(hot)} ACTIONABLE", color=color) + tail)
     lines.append(f"  {len(cold)} not reachable")
     lines.append("")
 
@@ -110,6 +124,7 @@ def to_json(report: ScanReport) -> dict:
             "class": f.klass.value,
             "package": f.package.spec,
             "actionable": f.actionable,
+            "status": f.status.value,
             "reachable": f.reachable,
             "reason": f.reason,
             "symbol": (
