@@ -156,6 +156,40 @@ project lives exactly here, in dev tooling nowhere near the request path. A
 scanner that only checks "is the package installed" cannot tell the
 difference; Adit ran a real graph search and can.
 
+## The install-time story, proven on the real 2018 attack
+
+`npm install event-stream@3.3.6` fails today — `ETARGET`. npm unpublished the
+compromised release as part of the actual incident response, so it can no
+longer be freshly installed. That is the point, not an obstacle: a real 2018
+responder couldn't "just reinstall" the bad version to check exposure either —
+they had to check what their own **existing lockfile** had already resolved.
+It's why Adit checks history instead of re-fetching artifacts.
+
+Reconstructed a lockfile with the real published/pulled dates from public
+writeups (`flatmap-stream@0.1.1`: published 2018-09-08, pulled 2018-11-20) and
+ran it through the same `emit_lockfile()` / `Queries` code every other scan in
+this project uses:
+
+```
+Advisories for flatmap-stream@0.1.1 (live OSV):
+  MAL-2025-20690  [install_time]  Malicious code in flatmap-stream (npm)
+
+Blast radius:
+  rel:npm:log-pipeline@1.0.0
+  rel:npm:event-stream@3.3.6
+
+Exposed services (window: the live-compromise dates, Sep 8 – Nov 20 2018):
+  {'service': 'svc:log-pipeline', 'valid_from': ..., 'source': 'package-lock.json (reconstructed, 2018 incident)'}
+
+Exposed services (window: BEFORE the compromise even existed, all of 2017):
+  0 service(s) -- correctly none, the fact did not exist yet
+```
+
+OSV's own `MAL-` malicious-package entry — checked live, not cached —
+classifies correctly as install-time. The temporal query correctly finds
+exposure in the live window and correctly finds *none* before the compromise
+existed, on real 2018 dates. `tests/test_eventstream_incident.py`.
+
 ## One kernel, three tracks
 
 Reachability, knowledge-update, and conflict-resolution turn out to be the

@@ -152,10 +152,23 @@ allowed to block the demo.
   comment. Verified end to end on a container 14 seconds old: `adit trace`
   reproduced the exact known-correct result (2 actionable, 3 not reachable),
   and the full test suite (115/115) passed against the same cold instance.
-- ⬜ **Feature freeze. No exceptions.** — next up
-- ⬜ README/ARCHITECTURE final pass
-- ⬜ Repo public, Apache-2.0, AGPL boundary stated (already written into README
-  §"Licence" — just needs the repo actually made public)
+- ✅ **Feature freeze declared.** 123/123 tests green, tracked tree audited
+  clean (no secrets, no TODO/FIXME, no scratch/temp leakage — `git grep`
+  checked, not assumed), 13 commits. Also shipped one thing past the original
+  Track-2A-only plan: an HTTP API (`adit-api`) built specifically so the
+  frontend has a real JSON contract to work against, verified over live HTTP.
+  No backend code changes past this commit without a real bug forcing one.
+- ✅ README/ARCHITECTURE final pass — found and fixed real staleness: the
+  README's own headline demo output was fabricated (predated the pipeline),
+  and the architecture doc's file layout predated half the ingest pipeline
+  plus both the MCP server and the HTTP API.
+- ⬜ Repo public — blocked on the user: no `gh` CLI installed, no git remote
+  configured. Needs either an empty GitHub repo URL to push to, or the user
+  running `gh auth login` themselves (interactive OAuth, can't be automated).
+- ⬜ Demo video — needs the user; no screen-recording capability here. Script
+  and exact commands prepared below (§6) so recording is a read-through.
+- ⬜ Submission form — third-party site, needs the user's account. Draft copy
+  prepared so filling it out is copy/paste, not composition from scratch.
 
 ### Thu Aug 20 — ship
 - ⬜ Demo video ≤3 min (structure in §6)
@@ -184,23 +197,38 @@ are exactly where a silent defect hides longest.
 
 ---
 
-## 6. Demo video (3 min)
+## 6. Demo video (3 min) — every beat below is a real, verified run, not a plan
 
-1. **0:00–0:20** — "47 alerts this morning. Three matter. Here's how you know which."
-2. **0:20–1:30** — `adit trace` on a **real repo**. The path, `file:line`, into
-   `node_modules`. Then a **not-reachable** result — and why that half is the valuable one.
-3. **1:30–2:10** — `adit blast` on a real install-time compromise. Reachability is
-   skipped because a preinstall hook runs regardless; the temporal window query runs
-   instead. **That one sentence is what makes us look like engineers.**
-4. **2:10–3:00** — Same kernel, agent memory: a fact overwritten three sessions later,
-   answered correctly; then an abstention. Architecture slide. "This is traversal.
-   A vector index cannot answer it at all."
+1. **0:00–0:20** — `npm audit` on a real, unmodified `expressjs/express` clone: 4
+   vulnerabilities flagged. "Here's how you know which of these actually matter."
+2. **0:20–1:10** — `adit trace` on express. **0 actionable.** Show *why*: `npm ls`
+   places all three implicated packages inside `mocha` and `nyc` — express's own
+   test runner and coverage tool, never shipped in a deployed app. Then the SAME
+   command on the demo app fixture: a real path, `file:line`, into `unset.js` —
+   the positive case, so both halves of the claim are shown, not just the easy one.
+3. **1:10–2:10** — The install-time story: `npm install event-stream@3.3.6` —
+   **fails live, on camera.** `ETARGET`. npm unpublished it after the real 2018
+   Bitcoin-wallet-stealing attack. "You can't even re-fetch the bad version to
+   check — which is exactly why Adit checks your *lockfile history* instead."
+   Run the reconstructed-lockfile scenario: OSV's live `MAL-` entry, correctly
+   classified install-time; blast radius; exposed-services *during* the
+   compromise window; **zero** exposure in a window *before* the compromise
+   existed — the abstention, on real 2018 dates, not a synthetic case.
+4. **2:10–3:00** — Same kernel, agent memory: LongMemEval's real personal-best
+   5K time example, queried at three real dates — before either session (none),
+   between them (`27:12`, the old value), after both (`25:50`, the update).
+   Architecture slide. "One kernel. Reachability, temporal validity, and
+   authority-ranked trust are the same query shape with a different sort key.
+   A vector index cannot answer any of them."
 
 ---
 
-## 7. Not building
+## 7. Scope
 
-No web UI (owner's call, revisited Tue). No dashboard. No auth. No multi-language
-support. No custom embedding model. No Graphiti driver. No 500K-document ingest.
+Shipped past the original plan: an HTTP API (`adit-api`) for the user's own
+frontend, since a browser can't reach the CLI's stdout or the MCP server's
+stdio framing. No dashboard, no auth beyond localhost trust, no multi-language
+support beyond TypeScript/JavaScript, no custom embedding model, no Graphiti
+driver, no 500K-document ingest.
 
-**If it isn't on the path to §6, it doesn't exist this week.**
+**If it isn't on the path to §6 or a real frontend request, it doesn't ship.**
