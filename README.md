@@ -7,17 +7,20 @@
 Its first application: *does your code actually **reach** the vulnerable function
 four levels deep in your lockfile?*
 
+Real output, from `adit trace` on an unmodified fixture app — not illustrative
+copy, the actual run (`README.md` and `ARCHITECTURE.md` hold each other to this
+standard throughout, so the front door does too):
+
 ```
 $ adit trace
-  47 advisories affecting this repo
-   3 REACHABLE
-  44 not reachable (no call path from any entrypoint)
+  5 advisories affecting this repo
+  2 ACTIONABLE
+  3 not reachable
 
-  x GHSA-9f2c  lodash@4.17.20  ->  prototype pollution in _.merge
-     src/api/orders.ts:42          handleOrder()
-       -> src/lib/normalize.ts:17  normalizePayload()
-         -> node_modules/lodash/merge.js:12  merge()   <- vulnerable
-     entrypoint: POST /orders  ·  covered by: test/orders.spec.ts
+  x GHSA-f23m-r3pf-42rh  lodash@4.17.20  ->  prototype pollution in `_.unset`
+     src/api.ts:5          handleOrder()
+       -> src/sanitise.ts:4  scrubOrder()
+         -> unset.js:30       unset()   <- vulnerable
 ```
 
 Not a score. **A path.**
@@ -53,8 +56,33 @@ Most tools conflate these. Adit classifies first, then picks the query:
 ```bash
 docker compose up -d          # HydraDB on bolt://127.0.0.1:7687
 pip install -e ".[dev]"
+adit trace /path/to/a/repo    # the product
 pytest -m integration         # proves the kernel against a live engine
 ```
+
+## Three surfaces, one pipeline
+
+The CLI, the MCP server, and the HTTP API all call the same `scan()` and
+`render.to_json()` — none of them contain independent logic, so they can't
+silently drift from each other.
+
+```bash
+adit trace|blast|why       # terminal, --json for structured output
+adit-mcp                   # stdio MCP server -- Claude Code, Cursor, any MCP client
+adit-api                   # HTTP on 127.0.0.1:8420 -- for a browser frontend
+```
+
+`adit-mcp` exposes five tools (`trace_repository`, `why_reachable`,
+`blast_radius`, `callers_of`, `find_symbol`) — kept deliberately few, since
+teams routinely burn 20–70% of a context window on tool schemas before an
+agent does any real work. Point Claude Code or Cursor at it and ask "does
+this repo actually reach the vulnerable function in GHSA-xxxx" without
+leaving the editor.
+
+`adit-api` exists because neither of the above is reachable from a browser's
+`fetch()` — CLI output goes to a terminal, MCP speaks stdio RPC framing.
+`POST /scan`, `GET /blast/{pkg}@{version}`, `GET /why`, `GET /health`; see
+`src/adit/api.py`'s module docstring for the full contract.
 
 ## How it works
 

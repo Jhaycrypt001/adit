@@ -311,12 +311,30 @@ src/adit/
     writer.py     upsert_nodes() / create_edges() / upsert_facts()
     cypher.py     literal-list inlining with strict escaping
     queries.py    Q1 / Q2 / Q3 -- the entire query layer
-  ingest/         stages A-E
-  classify.py     install-time vs runtime advisory triage
-  render.py       Path -> file:line output
+  ingest/
+    project.py    stage A -- TS/JS parse + cross-file resolution
+    typescript.py stage A -- tree-sitter extraction, one file at a time
+    emit.py       stage A -- writes the repo's own code graph
+    lockfile.py   stage B -- package-lock.json -> ResolvedPackage graph
+    deps_emit.py  stage B -- writes Release/DEPENDS_ON/Resolution facts
+    osv.py        stage C -- OSV client + install-time/runtime classify()
+    symbols.py    stage C -- the three-tier vulnerable-symbol resolver
+    binder.py     stage D -- crosses the package boundary
+    memory.py     Track 3 adapter (LongMemEval)
+    enterprise.py Track 1 adapter (HERB)
+  scan.py         the pipeline: Status enum, Finding, ScanReport
+  render.py       Path -> file:line output; to_json() for MCP/HTTP
   cli.py          adit trace | blast | why
-scripts/          the four capability probes (see §0)
+  mcp_server.py   adit-mcp -- 5 tools over stdio (Claude Code, Cursor, ...)
+  api.py          adit-api -- HTTP surface for a browser frontend
+scripts/          the capability probes (see §0) and repo/package benchmarks
 ```
+
+Three consumer surfaces, one pipeline underneath: the CLI, the MCP server, and
+the HTTP API all call `scan()` and `render.to_json()` directly. None of them
+contain independent logic -- a route handler or an MCP tool function is a
+JSON-in-JSON-out shim, never a second implementation that could drift from
+the first.
 
 ### Why `cypher.py` exists
 
