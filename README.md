@@ -128,6 +128,24 @@ project lives exactly here, in dev tooling nowhere near the request path. A
 scanner that only checks "is the package installed" cannot tell the
 difference; Adit ran a real graph search and can.
 
+## One kernel, three tracks
+
+Reachability, knowledge-update, and conflict-resolution turn out to be the
+same query shape with a different sort key, proven on real data from each
+track rather than asserted:
+
+| Track | Question | Ranking | Proven on |
+|---|---|---|---|
+| **2A** (primary) | Does my code reach this? | path exists / does not | real lodash, express, a constructed demo app |
+| 3 | What's true now, given an update? | `valid_from` (recency) | real LongMemEval session pair |
+| 1 | Which source do I trust? | `source_tier`, then `valid_from` | real HERB entities |
+
+Track 1's adversarial test rigs timestamps so a recency-only sort gives the
+*wrong* answer — a stale Slack message can't outrank a document it never
+superseded, on authority alone, regardless of which is newer. Full detail,
+including the honest negative results from searching HERB for a
+naturally-occurring contradiction, is in `ARCHITECTURE.md` §6a–6b.
+
 ## Limitations
 
 Static call graphs over a dynamic language are an over-approximation. Stated plainly,

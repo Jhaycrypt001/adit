@@ -126,9 +126,19 @@ allowed to block the demo.
 - **Frontend decision:** still open, still the owner's call. Kernel returns
   structured JSON (`render.to_json`) either way, so nothing blocks on it.
 
-### Wed Aug 19 — Track 1 + freeze
-- ⬜ Thin HERB subset (**not** the 500K EnterpriseRAG corpus) — not started
-- ⬜ **Feature freeze at 12:00. No exceptions.**
+### Wed Aug 19 — Track 1 + freeze — **Track 1 done, two days early**
+- ✅ HERB adapter — real employee/product entities cloned directly from
+  `SalesforceAIResearch/HERB` (data ships as raw JSON in the repo, no
+  generation pipeline needed). Three real, reported search attempts for a
+  naturally-occurring contradiction came up empty (near-duplicate documents,
+  no per-product role field, no conflict-tagged questions in this dataset) —
+  so the specific conflicting values are constructed on real entities, said
+  plainly in ARCHITECTURE.md §6b rather than presented as mined.
+- ✅ Proved the real distinguishing claim, adversarially: `best_claim()` ranks
+  by `(source_tier DESC, valid_from DESC)`, and the fixture is rigged so a
+  recency-only sort would pick the WRONG source. First multi-column `ORDER BY`
+  this project relied on — confirmed live before building on it.
+- ⬜ **Feature freeze. No exceptions.** — next up
 - ⬜ README/ARCHITECTURE final pass, cold-start verification on a clean machine
 - ⬜ Repo public, Apache-2.0, AGPL boundary stated (already written into README
   §"Licence" — just needs the repo actually made public)

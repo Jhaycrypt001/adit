@@ -270,6 +270,48 @@ class Queries:
         )
         return rows[0] if rows else None
 
+    def best_claim(self, entity_key: str, subject: str) -> dict[str, Any] | None:
+        """Which of possibly several conflicting claims about `subject` do we
+        trust? Ranked by `(source_tier DESC, valid_from DESC)` -- authority
+        first, recency as the tiebreak. Not `claim_as_of`'s shape by
+        coincidence: same fixed-source hop, same property-filtered read, one
+        extra ORDER BY column. Confirmed live before relying on it -- Track 3
+        never needed more than one sort column, and multi-column ORDER BY was
+        untested territory until this query.
+
+        Deliberately does not take an `as_of` argument the way `claim_as_of`
+        does: "which source do I trust" is a standing question about
+        provenance, not a point-in-time snapshot. A caller wanting both
+        (trust-ranked, as of a given date) would add `valid_from <= $as_of`
+        to the WHERE clause -- not needed by anything in this project yet, so
+        not built speculatively.
+        """
+        rows = self.hydra.run(
+            f"MATCH (e {{id: {node_id(entity_key)}}})-[:{Edge.ASSERTS.value}]->"
+            f"(c:{Label.CLAIM.value}) "
+            f"WHERE c.subject = $subject "
+            f"RETURN c.object AS object, c.source AS source, c.source_kind AS source_kind, "
+            f"c.source_tier AS source_tier, c.valid_from AS valid_from, c.text AS text "
+            f"ORDER BY c.source_tier DESC, c.valid_from DESC LIMIT 1",
+            subject=subject,
+        )
+        return rows[0] if rows else None
+
+    def all_claims(self, entity_key: str, subject: str) -> list[dict[str, Any]]:
+        """Every claim about `subject`, ranked the same way -- for showing the
+        full disagreement, not just the winner. A tool that only ever shows
+        the resolved answer without the competing claims it overrode is asking
+        to be trusted blindly; Adit shows its work."""
+        return self.hydra.run(
+            f"MATCH (e {{id: {node_id(entity_key)}}})-[:{Edge.ASSERTS.value}]->"
+            f"(c:{Label.CLAIM.value}) "
+            f"WHERE c.subject = $subject "
+            f"RETURN c.object AS object, c.source AS source, c.source_kind AS source_kind, "
+            f"c.source_tier AS source_tier, c.valid_from AS valid_from, c.text AS text "
+            f"ORDER BY c.source_tier DESC, c.valid_from DESC",
+            subject=subject,
+        )
+
     # -- helpers -----------------------------------------------------------
     def key_exists(self, key: str) -> bool:
         """Does a node with this canonical key exist?

@@ -390,6 +390,53 @@ against the same two real sessions:
 The middle row is the one that proves bitemporal, not merely "latest wins":
 getting it backwards would mean Adit can only state the present, not history.
 
+## 6b. Track 1 adapter: authority-ranked conflict resolution, a third proof
+
+`ingest/enterprise.py` maps enterprise knowledge onto the same kernel a third
+time, and the claim it proves is structurally different from Track 3's:
+Track 3 ranks claims by **recency alone** ("the latest update wins"); Track 1
+ranks by **authority, then recency** ("the most credible source wins, ties
+broken by time"). That second axis is real, not decorative — an enterprise
+knowledge base has documents, meeting transcripts and chat messages of
+genuinely different trustworthiness, and a system that only sorts by time will
+let a stale Slack aside outrank a document it did not actually supersede.
+
+`Claim.source_tier` is the mechanism, and `Queries.best_claim()` sorts on
+`(source_tier DESC, valid_from DESC)` — the first multi-column `ORDER BY` this
+project relied on. Confirmed live before building on it (§1 already establishes
+`ORDER BY` and `LIMIT` work individually; two columns together was untested).
+
+**Entities are real HERB data (`github.com/SalesforceAIResearch/HERB`,
+`data/metadata/employee.json` and `data/products/CollaborationForce.json`); the
+specific conflicting values are not.** Finding a genuine, unambiguous same-fact
+contradiction in that corpus was attempted with the same declared-pattern
+method used for Track 3, and came up empty on three real searches — reported,
+not hidden: a generic quantity scan across slack/documents/meeting_transcripts
+surfaced numbers that turned out to be near-duplicate documents repeating the
+identical figure, or two genuinely different quantities sharing a keyword; a
+role-disagreement check between each employee's canonical record and their
+per-product team listing found no per-product role field to compare against at
+all; and no HERB question is tagged or worded as a conflict case — the track
+brief's "Conflicting Info" category belongs to the *other* Track 1 dataset
+(EnterpriseRAG-Bench), not HERB. The two conflicting claims are therefore
+constructed, using real entity ids and a real product, to exercise the ranking
+mechanism — the same honesty line Stage D draws around its tier-3 fallback.
+
+The adversarial proof, timestamps rigged on purpose so recency-only sorting
+gives the wrong answer:
+
+| Source | Tier | `valid_from` | Value |
+|---|---|---|---|
+| document (PRD) | 3 | earlier | `2026-04-15` |
+| meeting transcript | 2 | **latest of the three** | `2026-04-01` |
+| Slack | 1 | earliest | `2026-03-01` |
+
+`ORDER BY valid_from DESC LIMIT 1` alone would pick the meeting transcript —
+it is the most recent. `best_claim()` correctly picks the document, because
+tier is checked first. `test_authority_beats_recency_not_vice_versa` asserts
+this is not a coincidence: it fails loudly if the ranking ever regresses to
+plain recency.
+
 ## 7. Stated limitations
 
 Static call graphs over a dynamic language are an **over-approximation**. Declared
