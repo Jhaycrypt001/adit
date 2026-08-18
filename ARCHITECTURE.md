@@ -326,7 +326,9 @@ src/adit/
   render.py       Path -> file:line output; to_json() for MCP/HTTP
   cli.py          adit trace | blast | why
   mcp_server.py   adit-mcp -- 5 tools over stdio (Claude Code, Cursor, ...)
-  api.py          adit-api -- HTTP surface for a browser frontend
+  api.py          adit-api -- HTTP surface, built to be safe on the public internet
+  remote.py       git-clone-by-URL + --ignore-scripts dependency install,
+                  the SSRF/RCE boundary a public /scan endpoint needs
 scripts/          the capability probes (see §0) and repo/package benchmarks
 ```
 

@@ -40,6 +40,8 @@ markers = [
     # Tests needing a live HydraDB on bolt://127.0.0.1:7687.
     #   docker compose up -d
     "integration: requires a running HydraDB",
+    # Real git clone + real npm install -- can take minutes, not seconds.
+    "slow: real network I/O, run deliberately rather than on every save",
 ]
 
 [tool.ruff]

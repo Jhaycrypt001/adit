@@ -15,18 +15,66 @@ ingest must be safely re-runnable.
 
 from __future__ import annotations
 
+import contextvars
+from collections.abc import Iterator
+from contextlib import contextmanager
 from hashlib import blake2b
 
 # Postgres-style: stay inside signed 64-bit so no driver or engine narrows it.
 _MASK = (1 << 63) - 1
 
+# Request-scoped isolation for a hosted, multi-tenant API.
+#
+# HydraDB rejects any graph-database name it wasn't started with --
+# `session(database="scan-xyz")` fails with "unknown graph database"
+# (confirmed live; per-request engine-level databases are not an option this
+# engine offers). So isolation happens one level up: every scan gets a random
+# namespace folded into its ids before hashing, all sharing the one "default"
+# graph HydraDB actually has. Two scans of the identical repo get disjoint id
+# spaces and cannot collide or see each other's data -- not because the data
+# is deleted (it isn't; there is no expiry mechanism), but because nothing
+# outside that scan's own response ever learns its namespace. "Ephemeral"
+# here means "not globally discoverable," stated precisely rather than
+# implying deletion that doesn't happen.
+#
+# A ContextVar rather than a thread-local or a Writer/Queries constructor
+# argument: FastAPI serves concurrent requests on one event loop, and
+# ContextVar is the primitive that stays correctly isolated per request
+# under that concurrency model without threading a namespace parameter
+# through every function signature in graph/ and ingest/.
+_namespace: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "adit_scan_namespace", default=None
+)
+
+
+@contextmanager
+def scan_scope(namespace: str) -> Iterator[None]:
+    """Fold `namespace` into every node_id() derived inside this block.
+
+    The CLI and every existing test never call this, so `node_id()` keeps
+    hashing bare keys exactly as before for them -- this is additive, not a
+    behaviour change to anything already shipped.
+    """
+    token = _namespace.set(namespace)
+    try:
+        yield
+    finally:
+        _namespace.reset(token)
+
+
+def current_namespace() -> str | None:
+    return _namespace.get()
+
 
 def node_id(key: str) -> int:
     """Derive the integer node id for a canonical key.
 
-    Stable across processes and runs -- blake2b is not salted here on purpose.
+    Stable across processes and runs -- blake2b is not salted here on
+    purpose, beyond the request-scoped namespace prefix from `scan_scope()`.
     """
-    digest = blake2b(key.encode("utf-8"), digest_size=8).digest()
+    ns = _namespace.get()
+    full = f"{ns}\x00{key}" if ns is not None else key
+    digest = blake2b(full.encode("utf-8"), digest_size=8).digest()
     return int.from_bytes(digest, "big") & _MASK
 
 

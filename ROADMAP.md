@@ -227,8 +227,15 @@ are exactly where a silent defect hides longest.
 
 Shipped past the original plan: an HTTP API (`adit-api`) for the user's own
 frontend, since a browser can't reach the CLI's stdout or the MCP server's
-stdio framing. No dashboard, no auth beyond localhost trust, no multi-language
-support beyond TypeScript/JavaScript, no custom embedding model, no Graphiti
-driver, no 500K-document ingest.
+stdio framing — and, once the frontend was confirmed to be a hosted, public
+deployment rather than local-only, real hardening around that: git-clone-by-
+URL replacing a server-side filesystem path (an SSRF-guarded rewrite, 25
+lookalike-host shapes tested), `--ignore-scripts` on every dependency install
+(proven with a real postinstall-payload canary that must never fire), and
+per-request id namespacing so concurrent scans by different users can't
+collide (`graph.ids.scan_scope()`). No accounts/login, no dashboard beyond
+what the frontend builds, no multi-language support beyond TypeScript/
+JavaScript, no custom embedding model, no Graphiti driver, no 500K-document
+ingest.
 
 **If it isn't on the path to §6 or a real frontend request, it doesn't ship.**

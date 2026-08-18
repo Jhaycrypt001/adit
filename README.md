@@ -69,7 +69,7 @@ silently drift from each other.
 ```bash
 adit trace|blast|why       # terminal, --json for structured output
 adit-mcp                   # stdio MCP server -- Claude Code, Cursor, any MCP client
-adit-api                   # HTTP on 127.0.0.1:8420 -- for a browser frontend
+adit-api                   # HTTP on :8420 -- built to be safe for the public internet
 ```
 
 `adit-mcp` exposes five tools (`trace_repository`, `why_reachable`,
@@ -81,8 +81,52 @@ leaving the editor.
 
 `adit-api` exists because neither of the above is reachable from a browser's
 `fetch()` — CLI output goes to a terminal, MCP speaks stdio RPC framing.
-`POST /scan`, `GET /blast/{pkg}@{version}`, `GET /why`, `GET /health`; see
+`POST /scan {"repo_url": "https://github.com/owner/repo"}`, `GET
+/blast/{pkg}@{version}`, `GET /why`, `GET /health`. Unlike the CLI, `/scan`
+does not take a filesystem path — it takes a GitHub URL, clones it server-side
+into an isolated directory, and cleans up afterward; see [Running this as a
+public service](#running-this-as-a-public-service) for why, and
 `src/adit/api.py`'s module docstring for the full contract.
+
+## Running this as a public service
+
+`adit-api` used to take a raw filesystem `path`, resolved on the server —
+fine for a CLI (same trust boundary as running any command on your own
+machine), an arbitrary-file-read vulnerability the moment the endpoint is
+reachable from the internet, since the path is resolved on the *server*, not
+whoever's asking. `POST /scan` now takes a `github.com` URL instead. Three
+things had to be true before that was safe to expose publicly, not
+optional polish:
+
+- **The URL is validated, then rebuilt from validated parts** — only
+  `https://github.com/<owner>/<repo>`, parsed and reconstructed rather than
+  passed through as given, so a discrepancy between `urlparse` and whatever
+  `git` itself parses can't be exploited. 25 SSRF/lookalike-host shapes are
+  tested directly (`tests/test_remote.py`) — loopback, cloud metadata
+  endpoints, userinfo credential tricks, non-standard ports, all rejected
+  before any network call is attempted.
+- **Dependencies install with `--ignore-scripts`, always.** This isn't a
+  performance shortcut — it's the exact install-time-payload threat Adit
+  itself exists to detect (the real 2018 event-stream attack demonstrated
+  above). Hosting infrastructure that clones arbitrary public repos and then
+  runs their install scripts unguarded would hand remote code execution to
+  whoever submits a malicious URL. Adit does static analysis of whether a
+  payload *would* run; it never needs the payload to actually run. Proven,
+  not assumed: a test writes a package with a postinstall hook that leaves a
+  detectable file on disk, and asserts that file never appears.
+- **Every scan's node ids are hashed with a random per-request namespace**
+  folded in, so concurrent scans by different users can't collide or read
+  each other's data — HydraDB itself rejects any graph-database name it
+  wasn't started with, so this happens one level up, in `graph.ids.scan_scope()`.
+  Stated precisely: this makes scan data *not globally discoverable*, not
+  deleted — HydraDB has no expiry mechanism, and unbounded accumulation over
+  time is a known limitation of running this as a long-lived public service,
+  not a problem this submission claims to have solved.
+
+A 5-scans-per-10-minutes per-IP rate limit sits in front of the expensive
+endpoint. It's an in-memory, single-process limiter — enough for a
+hackathon-timeline hosted demo, not a multi-instance production deployment,
+which would need a shared store instead. Said here rather than left implicit.
 
 ## How it works
 
