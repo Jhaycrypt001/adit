@@ -3,6 +3,7 @@ import FloatingMenu, { type MenuItem } from "@/components/ui/liquid-morph-floati
 import { CinematicFooter } from "@/components/ui/motion-footer";
 import { Hero } from "@/components/sections/Hero";
 import { TheAnswer } from "@/components/sections/TheAnswer";
+import { WhyAGraph } from "@/components/sections/WhyAGraph";
 import { Capabilities } from "@/components/sections/Capabilities";
 import { HowItWorks } from "@/components/sections/HowItWorks";
 import { Console } from "@/components/sections/Console";
@@ -64,6 +65,7 @@ export default function App() {
           <main className="relative z-10 w-full bg-background">
             <Hero onOpenConsole={openConsole} />
             <TheAnswer />
+            <WhyAGraph />
             <Capabilities />
             <HowItWorks />
           </main>
