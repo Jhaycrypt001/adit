@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Design tokens.
+
+   Dark-first on purpose: the hero renders a black hole against real black, and
+   a light chrome around it would fight the one thing the page is built to show.
+   Every token is oklch because `motion-footer.tsx` mixes them with
+   `color-mix(in oklch, ...)`, which silently no-ops on hex.
+
+   The accent ramp is not decorative -- it is the same accretion-disc ramp the
+   hero shader burns (hot rim -> mid disc -> cool outer edge), so the chrome and
+   the art are reading from one palette instead of two that nearly match.
+--------------------------------------------------------------------------- */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+}
+
+:root {
+  --background: oklch(0.115 0.004 60);
+  --foreground: oklch(0.97 0.008 80);
+
+  --card: oklch(0.16 0.006 60);
+  --card-foreground: oklch(0.97 0.008 80);
+
+  /* hotColor "#FFF3DE" / midColor "#FF9838" from the hero shader */
+  --primary: oklch(0.78 0.155 55);
+  --primary-foreground: oklch(0.16 0.01 55);
+
+  /* coolColor "#8E3A0B" -- the outer, cooler gas */
+  --secondary: oklch(0.52 0.125 42);
+  --secondary-foreground: oklch(0.97 0.008 80);
+
+  --muted: oklch(0.21 0.005 60);
+  --muted-foreground: oklch(0.68 0.012 70);
+
+  --accent: oklch(0.24 0.012 60);
+  --accent-foreground: oklch(0.97 0.008 80);
+
+  --destructive: oklch(0.62 0.21 25);
+  --destructive-foreground: oklch(0.98 0.005 80);
+
+  --border: oklch(0.27 0.006 60);
+  --input: oklch(0.27 0.006 60);
+  --ring: oklch(0.78 0.155 55);
+
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    background: var(--background);
+  }
+
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  /* The floating menu sits bottom-centre and overlaps the last rows of any
+     content that runs to the very bottom of the page. */
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 30%, transparent);
+    color: var(--foreground);
+  }
+}
+
+/* A reader who has asked for less motion gets less of it. The WebGL scenes
+   already honour this internally; this covers the CSS keyframe work. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
