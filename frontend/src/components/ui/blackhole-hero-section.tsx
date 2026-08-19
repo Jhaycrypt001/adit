@@ -650,12 +650,21 @@ export function BlackHoleHeroSection({
     midColor, coolColor, starBrightness, glow, exposure, vignette, steps,
     resolution, maxDpr, focus, scrim, scrimStrength, paused,
   });
-  props.current = {
-    distance, elevation, azimuth, orbitSpeed, roll, fov, diskInner, diskOuter,
-    diskThickness, diskDensity, brightness, spinSpeed, grain, doppler, hotColor,
-    midColor, coolColor, starBrightness, glow, exposure, vignette, steps,
-    resolution, maxDpr, focus, scrim, scrimStrength, paused,
-  };
+  // The render loop reads props out of a ref so that changing one never tears
+  // down and rebuilds the WebGL context. Syncing that ref in an effect rather
+  // than during render: a render React discards would otherwise still have
+  // mutated it, and under concurrent rendering that is a real way to end up
+  // drawing with props that were never committed. Declared before the setup
+  // effect below so it lands first on mount, and given no dependency array so
+  // it re-syncs after every commit.
+  useEffect(() => {
+    props.current = {
+      distance, elevation, azimuth, orbitSpeed, roll, fov, diskInner, diskOuter,
+      diskThickness, diskDensity, brightness, spinSpeed, grain, doppler, hotColor,
+      midColor, coolColor, starBrightness, glow, exposure, vignette, steps,
+      resolution, maxDpr, focus, scrim, scrimStrength, paused,
+    };
+  });
 
   useEffect(() => {
     const host = hostRef.current;

@@ -74,15 +74,16 @@ export interface CarouselStackedProps {
 const CarouselStacked = ({ slides, className }: CarouselStackedProps) => {
   const scrollProgress = useMotionValue(0);
   const startProgress = React.useRef(0);
-  // 0 until the first effect runs, which would briefly pick the mobile config
-  // on a desktop -- so the deck stays hidden for that one frame rather than
-  // laying itself out twice.
-  const [windowWidth, setWindowWidth] = React.useState(0);
+  // Read once during initialisation rather than set from an effect on mount.
+  // Seeding this at 0 and correcting it afterwards meant the very first paint
+  // laid the deck out with the phone config on every device, then re-rendered
+  // -- a visible reflow for one frame, and a wasted render every time.
+  // This app is client-rendered only, so `window` is always there.
+  const [windowWidth, setWindowWidth] = React.useState(() => window.innerWidth);
 
   const total = slides.length;
 
   React.useEffect(() => {
-    setWindowWidth(window.innerWidth);
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
