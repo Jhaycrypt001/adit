@@ -74,6 +74,26 @@ def rk(run: str, name: str) -> str:
     return release_key("npm", name, "1.0.0")
 
 
+def test_parse_package_lock_rejects_v1_shaped_lockfiles(tmp_path):
+    """lockfileVersion 1 encodes dependencies as a nested tree, not the flat
+    `packages` map this parser reads -- declared unsupported rather than
+    half-parsed. Not hypothetical: lodash's own committed
+    `package-lock.json` is still v1, and hitting this through `POST /scan`
+    must surface as a clean 4xx (see api.py's `ValueError` handler), not the
+    500 an earlier version of this pipeline produced for exactly this repo.
+    """
+    data = {
+        "name": "old-project",
+        "version": "1.0.0",
+        "lockfileVersion": 1,
+        "dependencies": {"foo": {"version": "1.0.0"}},
+    }
+    path = tmp_path / "package-lock.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ValueError, match="only v2/v3 lockfiles are supported"):
+        parse_package_lock(path)
+
+
 # -- blast radius: the ecosystem question -----------------------------------
 
 

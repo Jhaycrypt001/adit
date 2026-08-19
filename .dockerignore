@@ -1,0 +1,18 @@
+.venv/
+.git/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.adit/
+node_modules/
+hydradb-data/
+hydradb-data;C/
+tests/
+scripts/
+# README.md is NOT excluded here -- pyproject.toml declares it as
+# `readme = "README.md"` and hatchling's metadata build fails outright
+# without it actually present in the build context (confirmed).
+ARCHITECTURE.md
+ROADMAP.md

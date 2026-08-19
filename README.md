@@ -287,6 +287,17 @@ claimed 100% here would be lying.
   *"reaches the package's public API"* and **labels the result as such**.
 - Ingest is idempotent but not atomic — the engine has no explicit transactions. A
   partial run leaves a valid, incomplete graph and is safe to re-run.
+- **HydraDB's own local-filesystem storage backend** (`CLOUD_PROVIDER: local`, the
+  mode `docker compose up` runs) can start rejecting every write after sustained use,
+  logging `object store error: Operation \`put_opts\` with mode \`PutMode::Update\`
+  not yet implemented by LocalFileSystem`. Confirmed directly: not triggered by any
+  particular repo or query shape — once it starts, even a single synthetic node write
+  fails, and it stops the moment the `hydra_data` volume is reset
+  (`docker compose down -v && docker compose up -d`). This is an upstream engine
+  limitation in its dev-mode storage path, not an Adit defect — a real deployment
+  backed by S3 or another object store implementing `PutMode::Update` is not expected
+  to hit it, but local/demo use should know a volume reset is the fix if writes start
+  failing outright.
 
 ## Prior art
 

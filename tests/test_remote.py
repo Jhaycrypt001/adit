@@ -13,6 +13,7 @@ import pytest
 
 from adit.remote import (
     CloneFailed,
+    DependencyInstallFailed,
     InvalidRepoUrl,
     cloned_repo,
     install_dependencies,
@@ -126,6 +127,19 @@ def test_a_real_but_nonexistent_repo_raises_clonefailed_and_still_cleans_up():
             pass  # should never reach here
     after = set(Path(tempfile.gettempdir()).glob("adit-scan-*"))
     assert after <= before, "a failed clone left its temp directory behind"
+
+
+def test_install_dependencies_refuses_a_repo_with_no_package_json(tmp_path):
+    """octocat/Hello-World is a real repo, just not an npm one -- confirmed
+    directly that at least one npm version (node:20-slim's bundled npm,
+    inside the adit-api container) exits 0 and writes a degenerate
+    `package-lock.json` with no `packages` map in this situation rather than
+    erroring, which then reached `lockfile.parse_package_lock` as an
+    unhandled `ValueError` -- a 500 through the hosted API, not the clean
+    4xx this module exists to guarantee. Checked before shelling out to npm
+    at all, so behaviour no longer depends on one npm version's opinion."""
+    with pytest.raises(DependencyInstallFailed, match="no package.json"):
+        install_dependencies(tmp_path)
 
 
 # -- live: install_dependencies() never runs the untrusted repo's own code --

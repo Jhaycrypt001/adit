@@ -99,5 +99,19 @@ services:
       retries: 20
       start_period: 10s
 
+  api:
+    build: .
+    container_name: adit-api
+    depends_on:
+      hydradb:
+        condition: service_healthy
+    ports:
+      - "8420:8420"
+    environment:
+      # Service-name resolution inside the compose network -- the image's
+      # own ENV default (bolt://127.0.0.1:7687) is only correct for a
+      # HydraDB in the SAME container, which is never true here.
+      ADIT_BOLT_URI: bolt://hydradb:7687
+
 volumes:
   hydra_data:

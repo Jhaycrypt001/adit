@@ -176,7 +176,21 @@ def install_dependencies(root: Path) -> None:
     own `.npmrc` setting `package-lock=false` -- do not commit a lockfile at
     all, so `npm ci` (which requires one) is not always usable; falls back
     to `npm install --package-lock=true` to generate one when absent.
+
+    Checked before shelling out at all: a repo with no `package.json`
+    (e.g. octocat/Hello-World -- a real repo, just not an npm one) is not
+    a dependency-install failure npm reliably reports as one. Confirmed
+    directly running this container's bundled npm (node:20-slim, newer
+    than the version this was first tested against on the host) against
+    such a repo: it exited 0 and wrote a `package-lock.json` with a
+    `lockfileVersion` but no `packages` map at all, which then blew up
+    `lockfile.parse_package_lock` as an *unhandled* `ValueError` deep
+    inside `scan()` -- a 500, not the clean 4xx this whole module exists
+    to guarantee. Different npm versions disagree about whether that's an
+    error; not depending on that behaviour is more robust than chasing it.
     """
+    if not (root / "package.json").is_file():
+        raise DependencyInstallFailed("no package.json found -- not an npm project")
     has_lockfile = (root / "package-lock.json").is_file()
     npm = _resolve("npm")
     cmd = (

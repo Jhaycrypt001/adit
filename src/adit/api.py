@@ -173,6 +173,14 @@ def scan_repo(req: ScanRequest, request: Request) -> dict[str, Any]:
         ) from None
     except FileNotFoundError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from None
+    except ValueError as exc:
+        # Defense in depth alongside remote.install_dependencies' own
+        # package.json check: a lockfile that parses but has a shape this
+        # version of the pipeline doesn't support (see
+        # lockfile.parse_package_lock) is a bad-input 4xx, not a stack
+        # trace -- confirmed one npm version could still produce this
+        # even with that check in place.
+        raise HTTPException(status_code=422, detail=f"could not parse lockfile: {exc}") from None
 
     body = to_json(report)
     body["scan_id"] = scan_id
