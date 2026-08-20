@@ -1,57 +1,68 @@
-# Deploying Adit
+# How to put Adit on the internet
 
-Two pieces, deployed separately: a static frontend, and a backend that needs a
-real container with a real disk.
+Follow this top to bottom. Don't skip ahead — step 2 needs a name you copy in
+step 1.
 
----
+You are building three things:
 
-## Frontend — Vercel
+```
+   HydraDB  ←──  the API  ←──  the website
+  (Railway)      (Railway)      (Vercel)
+   database       brain          what people see
+```
 
-The console and docs are a static Vite build. Nothing about them needs a
-server.
-
-1. Import the repository at [vercel.com/new](https://vercel.com/new)
-2. Set **Root Directory** to `frontend`
-3. Add one environment variable:
-
-   | Name | Value |
-   |---|---|
-   | `VITE_API_URL` | `https://<your-backend>.up.railway.app` |
-
-4. Deploy
-
-`frontend/vercel.json` already sets the SPA rewrite, immutable caching for
-hashed assets, and the usual hardening headers.
-
-**Two things that will bite you:**
-
-- `VITE_API_URL` is read **at build time**, not at runtime. Changing it means
-  redeploying, not just restarting.
-- It must be **`https`**. A Vercel page is served over HTTPS, and a browser
-  blocks plain-HTTP requests from an HTTPS page as mixed content. The console
-  will show "API unreachable" with no obvious cause.
-
-Without a backend the site still works: the console explains exactly which
-command starts one, so the landing page and docs are useful on their own.
+**Time:** about 45 minutes the first time.
+**Cost:** Railway needs a paid plan (you have one). Vercel is free.
 
 ---
 
-## Backend — Railway (or any container host)
+# PART 1 — The database (Railway)
 
-The API clones repositories, runs `npm install`, and talks to HydraDB. That
-rules out serverless platforms: a scan takes 40–90 seconds and needs disk, and
-Vercel/Netlify functions have neither.
+## 1.1 Make a project
 
-You need **two services in one project**.
+1. Go to **[railway.com](https://railway.com)** and log in
+2. Click **New Project**
+3. Click **Empty Project**
+4. Top-left, rename it to `adit`
 
-### Service 1 — HydraDB
+## 1.2 Add HydraDB
 
-| Setting | Value |
-|---|---|
-| Source | Docker image `ghcr.io/hydra-db/hydradb:latest` |
-| Volume | mount at `/data` |
+1. Click **+ Create** → **Docker Image**
+2. Paste exactly:
 
-Environment:
+   ```
+   ghcr.io/hydra-db/hydradb:latest
+   ```
+
+3. Press enter. A box appears — this is your database service.
+4. Click it, go to **Settings**, and under **Service Name** type:
+
+   ```
+   hydradb
+   ```
+
+> **Why the name matters:** you will type `hydradb.railway.internal` later.
+> If you name it something else, use that name instead — everywhere.
+
+## 1.3 Give it a disk
+
+Databases forget everything when they restart unless you give them a disk.
+
+1. Still in the `hydradb` service, click **Settings**
+2. Scroll to **Volumes** → **Add Volume**
+3. Mount path — type exactly:
+
+   ```
+   /data
+   ```
+
+4. Size: **5 GB** is plenty
+
+## 1.4 Give it its settings
+
+1. Click the **Variables** tab
+2. Look for **Raw Editor** (or "Edit as raw") and click it
+3. Delete anything in the box, then paste all of this:
 
 ```
 CLOUD_PROVIDER=local
@@ -62,90 +73,235 @@ GRAPH_CELL_ID=cell-0
 GRAPH_CELLS=cell-0
 GRAPH_NODE_ID=node-0
 GRAPH_BOLT_NODE_ADDRESSES=node-0=0.0.0.0:7687
-GRAPH_ADVERTISED_BOLT_ADDR=<this service's private hostname>:7687
+GRAPH_ADVERTISED_BOLT_ADDR=hydradb.railway.internal:7687
 GRAPH_DATA_CACHE_DIR=/data/cache
 GRAPH_AUTH_TOKEN_FILE=/data/auth-token
 GRAPH_ALLOW_PLAINTEXT=true
 RUST_MIN_STACK=33554432
+ADIT_SHARED_TOKEN=pick-any-long-random-password-here
 ```
 
-`GRAPH_ADVERTISED_BOLT_ADDR` is the one people get wrong. It is the address
-HydraDB hands back to Bolt clients for follow-up connections. `127.0.0.1` is
-correct in `docker compose`, where both containers share a network, and wrong
-here — set it to the private hostname the API will dial (on Railway that is
-`<service>.railway.internal`).
+4. Change `pick-any-long-random-password-here` to any long random text. Write
+   it down — you need the **exact same text** in Part 2.
+5. Click **Update Variables**
 
-**The startup directories.** HydraDB does not create its own storage, cache or
-auth-token file, and fails outright if they are missing. `docker compose` has
-an `init` service for this; a single-container platform does not, so fold it
-into the start command:
+> **The line people get wrong:** `GRAPH_ADVERTISED_BOLT_ADDR`. This is the
+> address HydraDB tells other programs to call it back on. On your laptop
+> `127.0.0.1` is right. On Railway it is wrong — the API is a different
+> machine, and `127.0.0.1` there means "myself". If this is wrong, everything
+> connects and then immediately fails.
+
+## 1.5 Tell it to create its own folders
+
+HydraDB does not create the folders it needs and just crashes if they're
+missing. So we create them for it.
+
+1. **Settings** tab → scroll to **Deploy**
+2. Find **Custom Start Command**
+3. Paste this on one line:
 
 ```sh
-sh -c "mkdir -p /data/store /data/cache && \
-       [ -f /data/auth-token ] || printf '%s\n' 'change-me-to-a-real-token' > /data/auth-token; \
-       exec /usr/local/bin/graph-node"
+sh -c "mkdir -p /data/store /data/cache; [ -f /data/auth-token ] || printf '%s\n' \"$ADIT_SHARED_TOKEN\" > /data/auth-token; exec /usr/local/bin/graph-node"
 ```
 
-The image already runs as uid `10001`. If `mkdir` fails with a permission
-error, the mounted volume is root-owned — set the service to run as root for
-one deploy so the directories get created, then remove that.
+4. Click **Deploy** (top right)
 
-### Service 2 — the API
+## 1.6 Did it work?
 
-| Setting | Value |
-|---|---|
-| Source | this repository, root directory `.` (uses the root `Dockerfile`) |
-| Public networking | enabled |
+Click the **Deployments** tab and watch the log.
 
-Environment:
+- **Good:** lines scroll past and it keeps running
+- **Bad — "Permission denied":** Settings → Deploy → set **Root User** on (or
+  add `USER root`), deploy once, then turn it back off
+- **Bad — "No such file or directory":** the start command in 1.5 didn't
+  save. Go back and re-paste it.
 
-```
-ADIT_BOLT_URI=bolt://<hydradb private hostname>:7687
-ADIT_BOLT_TOKEN=<the same token you wrote to /data/auth-token>
-```
-
-Do **not** set `PORT` by hand — the platform injects it and the API listens on
-it automatically, falling back to 8420 locally.
-
-### Check it
-
-```sh
-curl https://<your-backend>/health      # {"status":"ok"}
-```
-
-If that returns `503 HydraDB unreachable`, the two services are not talking:
-check `ADIT_BOLT_URI` and `GRAPH_ADVERTISED_BOLT_ADDR`.
-
-Then put the same URL into Vercel as `VITE_API_URL` and redeploy the frontend.
+**Do not continue until this stays running.**
 
 ---
 
-## Sizing and limits
+# PART 2 — The API (Railway)
 
-- **Disk.** Each scan clones a repository and installs its dependencies into a
-  temp directory, then removes it. `node_modules` for a real project is
-  routinely 200–400 MB. Give it a few GB of headroom.
-- **Memory.** 1 GB is workable; 512 MB will fail on larger `npm install` runs.
-- **Concurrency.** The API caps itself at 4 concurrent scans and sheds the rest
-  with `503` + `Retry-After`, so it degrades rather than falling over.
-- **Rate limit.** 5 scans per 10 minutes per IP, held in process memory. It is
-  per-instance, so running more than one replica multiplies the real limit — a
-  shared store would be needed for that, and is not built.
-- **Storage grows without bound.** HydraDB has no expiry and nothing deletes
-  scan data. For a long-lived deployment, plan to wipe the volume periodically.
+Same project. Don't make a new one.
 
-## The failure you are most likely to hit
+## 2.1 Add it from GitHub
 
-HydraDB's local-filesystem storage backend can start rejecting every write
-after sustained use:
+1. Click **+ Create** → **GitHub Repo**
+2. Choose **`Jhaycrypt001/adit`**
+3. Railway finds your `Dockerfile` and starts building
+4. **Settings** → **Service Name** → type:
+
+   ```
+   api
+   ```
+
+## 2.2 Give it its settings
+
+1. **Variables** tab → **Raw Editor**
+2. Paste:
 
 ```
-object store error: Operation `put_opts` with mode `PutMode::Update`
-not yet implemented by LocalFileSystem
+ADIT_BOLT_URI=bolt://hydradb.railway.internal:7687
+ADIT_BOLT_TOKEN=pick-any-long-random-password-here
 ```
 
-This is an upstream limitation of its dev-mode storage path, not an Adit
-defect. Locally the fix is `docker compose down -v && docker compose up -d`. On
-a hosting platform it means deleting the volume and redeploying. A production
-deployment would point `CLOUD_PROVIDER` at real object storage instead, which
-implements the operation this path is missing.
+3. Replace the password with **the exact same text** from step 1.4. Not
+   similar — identical.
+4. Click **Update Variables**
+
+> **Do NOT add a `PORT` variable.** Railway sets it for you and the API reads
+> it automatically. Adding your own will break it.
+
+## 2.3 Give it a public address
+
+1. **Settings** → **Networking**
+2. Click **Generate Domain**
+3. If it asks for a port, type `8420`
+4. Copy the URL — something like `api-production-a1b2.up.railway.app`
+
+**Save that URL. You need it in Part 3.**
+
+## 2.4 Test it
+
+Open this in your browser (your URL, then `/health`):
+
+```
+https://YOUR-URL.up.railway.app/health
+```
+
+| What you see | What it means |
+|---|---|
+| `{"status":"ok"}` | 🎉 Working. Go to Part 3. |
+| `{"detail":"HydraDB unreachable..."}` | The two services can't talk — see below |
+| Page won't load at all | Still building, or no domain. Check **Deployments**. |
+
+**If HydraDB is unreachable, check these three things:**
+
+1. `ADIT_BOLT_URI` says `hydradb.railway.internal` — matching the name from 1.2
+2. `ADIT_BOLT_TOKEN` (api) is character-for-character the same as
+   `ADIT_SHARED_TOKEN` (hydradb)
+3. `GRAPH_ADVERTISED_BOLT_ADDR` on hydradb is **not** `127.0.0.1`
+
+---
+
+# PART 3 — The website (Vercel)
+
+## 3.1 Import
+
+1. Go to **[vercel.com/new](https://vercel.com/new)**
+2. Import **`Jhaycrypt001/adit`**
+
+## 3.2 The one setting that matters
+
+Find **Root Directory**, click **Edit**, and choose the **`frontend`** folder.
+
+> Get this wrong and the build fails — Vercel would look at the Python project
+> at the top of the repo instead of the website.
+
+## 3.3 Point it at your API
+
+Open **Environment Variables** and add:
+
+| Name | Value |
+|---|---|
+| `VITE_API_URL` | `https://YOUR-URL.up.railway.app` |
+
+Three rules:
+
+- Use the URL from step 2.3
+- It must start with **`https`**, not `http`
+- **No slash at the end**
+
+> **Why `https` matters:** your Vercel page is secure. Browsers silently block
+> insecure requests from a secure page. The site would just say "API
+> unreachable" and never tell you why.
+
+## 3.4 Deploy
+
+Click **Deploy** and wait ~2 minutes.
+
+---
+
+# PART 4 — Check the whole thing
+
+Open your Vercel URL and add `#console`:
+
+```
+https://your-site.vercel.app/#console
+```
+
+**Top right should say `API online` with a green dot.**
+
+Then try a real scan:
+
+1. Click the **`Jhaycrypt001/adit — frontend`** button
+2. Click **Scan repository**
+3. Wait ~30 seconds
+4. You should get **`0 of 0 need action`**
+
+That's Adit, on the internet, scanning its own source code. You're done.
+
+---
+
+# When something breaks
+
+### "API unreachable" on the website
+
+| Check | How |
+|---|---|
+| Is the API alive? | Open `https://YOUR-URL/health` directly |
+| Is `VITE_API_URL` right? | Vercel → Settings → Environment Variables |
+| Is it `https`, no trailing slash? | Look carefully |
+| Did you redeploy after changing it? | **See the next box** |
+
+### ⚠️ Changing `VITE_API_URL` needs a REDEPLOY
+
+This value is baked in when the site is built. Editing it does nothing on its
+own.
+
+**Vercel → Deployments → ⋯ on the newest one → Redeploy**
+
+### "could not install dependencies: no package.json..."
+
+Not a bug. That repo keeps its `package.json` in a subfolder. The error names
+the folders it found — click one of the buttons that appears.
+
+### "rate limit: max 5 scans per 10 minutes"
+
+Working as designed, so nobody can hammer your server. Wait, or restart the
+`api` service on Railway.
+
+### Writes fail with `PutMode::Update not yet implemented`
+
+A known bug in HydraDB itself, not your code. It happens after lots of writes.
+
+**Fix:** Railway → `hydradb` → Settings → Volumes → delete the volume → add it
+back at `/data` → redeploy.
+
+You'll lose old scan data. Nothing else.
+
+---
+
+# Things worth knowing
+
+- **Storage grows forever.** Nothing deletes old scans. Wipe the volume every
+  so often (see above).
+- **Run one copy of the API only.** The rate limit lives in memory, so two
+  copies means double the real limit.
+- **1 GB RAM minimum.** 512 MB will fail while installing bigger projects.
+- **Scans take 40–90 seconds.** That's normal — it clones a real repository
+  and installs real dependencies.
+- **This can't go on Vercel.** Vercel kills requests after ~60 seconds and
+  gives you no disk. That's why the API lives on Railway.
+
+---
+
+# The short version
+
+| # | Where | Do |
+|---|---|---|
+| 1 | Railway | Docker image `ghcr.io/hydra-db/hydradb:latest`, name `hydradb`, volume `/data`, paste variables, custom start command |
+| 2 | Railway | GitHub repo `Jhaycrypt001/adit`, name `api`, 2 variables, generate domain |
+| 3 | — | Open `https://YOUR-API/health` → must say `ok` |
+| 4 | Vercel | Import repo, Root Directory `frontend`, add `VITE_API_URL`, deploy |
+| 5 | — | Open `your-site.vercel.app/#console` → must say `API online` |
