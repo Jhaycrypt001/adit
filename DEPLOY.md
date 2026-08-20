@@ -44,19 +44,21 @@ You are building three things:
 > **Why the name matters:** you will type `hydradb.railway.internal` later.
 > If you name it something else, use that name instead — everywhere.
 
-## 1.3 Give it a disk
+## 1.3 A disk — optional, and you can skip it
 
-Databases forget everything when they restart unless you give them a disk.
+If you can find **Settings → Volumes → Add Volume**, mount one at `/data` and
+use `/data/...` paths below.
 
-1. Still in the `hydradb` service, click **Settings**
-2. Scroll to **Volumes** → **Add Volume**
-3. Mount path — type exactly:
+**If you cannot find Volumes, skip this step.** The settings below store data
+inside the container instead. Everything works; you just lose old scan data
+whenever the service restarts, which for a demo is fine — every scan writes
+its own fresh data anyway.
 
-   ```
-   /data
-   ```
-
-4. Size: **5 GB** is plenty
+> **Why the paths below are `/tmp/adit` and not `/data`:** the HydraDB image
+> runs as a non-root user (`uid=10001`), and `/` is owned by root. Without a
+> volume mounted there, the container cannot create `/data` at all and dies on
+> boot with `mkdir: cannot create directory '/data': Permission denied`.
+> `/tmp` is world-writable, so it can. Verified by running the image both ways.
 
 ## 1.4 Give it its settings
 
@@ -66,7 +68,7 @@ Databases forget everything when they restart unless you give them a disk.
 
 ```
 CLOUD_PROVIDER=local
-LOCAL_PATH=/data/store
+LOCAL_PATH=/tmp/adit/store
 GRAPH_NAMESPACE=default
 GRAPH_ID=default
 GRAPH_CELL_ID=cell-0
@@ -74,16 +76,25 @@ GRAPH_CELLS=cell-0
 GRAPH_NODE_ID=node-0
 GRAPH_BOLT_NODE_ADDRESSES=node-0=0.0.0.0:7687
 GRAPH_ADVERTISED_BOLT_ADDR=hydradb.railway.internal:7687
-GRAPH_DATA_CACHE_DIR=/data/cache
-GRAPH_AUTH_TOKEN_FILE=/data/auth-token
+GRAPH_DATA_CACHE_DIR=/tmp/adit/cache
+GRAPH_AUTH_TOKEN_FILE=/tmp/adit/auth-token
 GRAPH_ALLOW_PLAINTEXT=true
 RUST_MIN_STACK=33554432
-ADIT_SHARED_TOKEN=pick-any-long-random-password-here
+ADIT_SHARED_TOKEN=aditRailwayToken2026xKq7Mn4Pw9Rt2Vb5
 ```
 
-4. Change `pick-any-long-random-password-here` to any long random text. Write
-   it down — you need the **exact same text** in Part 2.
+4. Change the token on the last line to your own random text — then **count
+   the characters**.
 5. Click **Update Variables**
+
+> ### ⚠️ The token must be at least 32 characters
+>
+> HydraDB refuses to start otherwise, with `graph auth token must contain at
+> least 32 non-placeholder characters`. The example above is 36. A
+> normal-looking password like `myPassword123` is far too short and the
+> service will crash-loop forever.
+>
+> **📝 Copy your token into a notepad now.** It has to be identical in Part 2.
 
 > **The line people get wrong:** `GRAPH_ADVERTISED_BOLT_ADDR`. This is the
 > address HydraDB tells other programs to call it back on. On your laptop
@@ -101,7 +112,7 @@ missing. So we create them for it.
 3. Paste this on one line:
 
 ```sh
-sh -c "mkdir -p /data/store /data/cache; [ -f /data/auth-token ] || printf '%s\n' \"$ADIT_SHARED_TOKEN\" > /data/auth-token; exec /usr/local/bin/graph-node"
+sh -c "mkdir -p /tmp/adit/store /tmp/adit/cache; [ -f /tmp/adit/auth-token ] || printf '%s\n' \"$ADIT_SHARED_TOKEN\" > /tmp/adit/auth-token; exec /usr/local/bin/graph-node"
 ```
 
 4. Click **Deploy** (top right)
@@ -110,11 +121,21 @@ sh -c "mkdir -p /data/store /data/cache; [ -f /data/auth-token ] || printf '%s\n
 
 Click the **Deployments** tab and watch the log.
 
-- **Good:** lines scroll past and it keeps running
-- **Bad — "Permission denied":** Settings → Deploy → set **Root User** on (or
-  add `USER root`), deploy once, then turn it back off
-- **Bad — "No such file or directory":** the start command in 1.5 didn't
-  save. Go back and re-paste it.
+**Good** — the last line says:
+
+```
+graph node listeners started
+```
+
+**Bad — `mkdir: cannot create directory '/data': Permission denied`**
+Your variables still say `/data`. Go back to 1.4 and 1.5 and make every path
+`/tmp/adit/...`. The container is not allowed to create folders at the root.
+
+**Bad — `graph auth token must contain at least 32 non-placeholder characters`**
+Your token is too short. Make it 32+ characters, in both places.
+
+**Bad — `Permission denied` on `/tmp/adit`**
+Rare. Settings → Deploy → turn **Root User** on, deploy once, turn it off.
 
 **Do not continue until this stays running.**
 
@@ -142,7 +163,7 @@ Same project. Don't make a new one.
 
 ```
 ADIT_BOLT_URI=bolt://hydradb.railway.internal:7687
-ADIT_BOLT_TOKEN=pick-any-long-random-password-here
+ADIT_BOLT_TOKEN=aditRailwayToken2026xKq7Mn4Pw9Rt2Vb5
 ```
 
 3. Replace the password with **the exact same text** from step 1.4. Not
