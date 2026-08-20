@@ -1,6 +1,7 @@
 import {
   type CSSProperties,
   forwardRef,
+  useEffect,
   useMemo,
   useRef,
 } from "react";
@@ -123,23 +124,61 @@ const TextCursorProximity = forwardRef<HTMLSpanElement, TextProps>(
       }
     };
 
+    /**
+     * Letter centres, relative to the container, cached.
+     *
+     * These were read with `getBoundingClientRect()` per letter per frame,
+     * which forces a synchronous layout every time. Two of these components
+     * on one page is 42 forced layouts per frame, and it showed up as scroll
+     * jank rather than as anything obviously wrong with the text.
+     *
+     * A letter's position relative to its container only moves when layout
+     * moves, so it is measured once and re-measured on resize. Scrolling does
+     * not change it: the mouse position is stored in the same relative space.
+     */
+    const geometry = useRef<{ cx: number; cy: number }[]>([]);
+    const needsMeasure = useRef(true);
+
+    useEffect(() => {
+      const invalidate = () => {
+        needsMeasure.current = true;
+      };
+      window.addEventListener("resize", invalidate);
+      // Web fonts land after first paint and reflow the text under us.
+      document.fonts?.ready.then(invalidate).catch(() => {});
+      return () => window.removeEventListener("resize", invalidate);
+    }, []);
+
+    // A changed label means different letters in different places.
+    useEffect(() => {
+      needsMeasure.current = true;
+    }, [label]);
+
     useAnimationFrame(() => {
       const container = containerRef.current;
       if (!container) return;
-      const containerRect = container.getBoundingClientRect();
+
+      if (needsMeasure.current) {
+        const containerRect = container.getBoundingClientRect();
+        geometry.current = letterRefs.current.map((el) => {
+          if (!el) return { cx: Number.NaN, cy: Number.NaN };
+          const r = el.getBoundingClientRect();
+          return {
+            cx: r.left + r.width / 2 - containerRect.left,
+            cy: r.top + r.height / 2 - containerRect.top,
+          };
+        });
+        needsMeasure.current = false;
+      }
+
       const { x: mx, y: my } = mousePositionRef.current;
+      const geo = geometry.current;
 
-      for (let i = 0; i < letterRefs.current.length; i++) {
-        const letterEl = letterRefs.current[i];
+      for (let i = 0; i < geo.length; i++) {
+        const g = geo[i];
         const proximity = proximities[i];
-        if (!letterEl || !proximity) continue;
-
-        const rect = letterEl.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2 - containerRect.left;
-        const cy = rect.top + rect.height / 2 - containerRect.top;
-        const distance = Math.hypot(mx - cx, my - cy);
-
-        proximity.set(calculateFalloff(distance));
+        if (!proximity || Number.isNaN(g.cx)) continue;
+        proximity.set(calculateFalloff(Math.hypot(mx - g.cx, my - g.cy)));
       }
     });
 

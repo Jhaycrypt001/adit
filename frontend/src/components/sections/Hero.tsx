@@ -32,8 +32,14 @@ export function Hero({ onOpenConsole }: { onOpenConsole: () => void }) {
         elevation={narrow ? -7 : -5.5}
         fov={narrow ? 58 : 42}
         glow={narrow ? 0.85 : 1}
-        steps={narrow ? 200 : 300}
-        resolution={narrow ? 0.6 : 0.7}
+        // Starting points, not fixed settings: the scene measures its own
+        // frame time and drops below these on a slower machine. Chosen lower
+        // than they were because the first frames run at full cost, and a
+        // hero that stutters for two seconds before settling reads as broken
+        // even if it recovers.
+        steps={narrow ? 160 : 220}
+        resolution={narrow ? 0.5 : 0.6}
+        maxDpr={1.5}
       >
         <div className="flex h-full min-h-[92svh] items-start px-6 pt-16 sm:px-10 md:min-h-[760px] md:items-center md:pt-0 lg:px-20">
           <div className="max-w-[36rem]">

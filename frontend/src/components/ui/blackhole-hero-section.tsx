@@ -879,6 +879,78 @@ export function BlackHoleHeroSection({
       settled = 0;
     }
 
+    /**
+     * Adaptive quality.
+     *
+     * Cost here is pixels times ray steps, and both sides of that are set by
+     * props chosen on one machine. On a slower GPU the same settings render a
+     * frame in over a second, which is not "a bit janky" -- it blocks the
+     * compositor, so scrolling and hover stutter across the whole page even
+     * though nothing else is expensive. Measured on a software renderer: 1.4s
+     * per frame at the defaults, while the identical page scrolled at 60fps
+     * once the hero left the viewport.
+     *
+     * So the scene measures itself and gives up quality until it fits the
+     * budget. It only ever steps down: stepping back up when a frame happens
+     * to come in cheap makes it oscillate visibly, which is worse than simply
+     * settling somewhere lower. The temporal accumulation already in place
+     * means a smaller buffer still converges to a clean image, it just takes
+     * a few more frames to get there.
+     */
+    const FRAME_BUDGET_MS = 26; // roughly 38fps; below this the page feels stuck
+    const QUALITY_FLOOR = 0.4;
+    const STEP_FLOOR = 120;
+    let qualityScale = 1;
+    let stepScale = 1;
+    let sampleCount = 0;
+    let sampleTotal = 0;
+
+    /** Returns true when it dropped quality, so the caller can rebuild. */
+    function considerDegrading(dt: number): boolean {
+      // Ignore the first frames: shader compile and first paint are not
+      // representative of steady-state cost.
+      if (settled < 4) return false;
+
+      // A frame several times over budget needs no corroboration, and waiting
+      // for a sample window to fill is exactly the wrong response: at 1fps a
+      // 24-frame window is 24 seconds of the page being unusable before the
+      // first correction lands. Anything merely marginal still gets averaged,
+      // so ordinary jitter does not drag quality down.
+      const catastrophic = dt > FRAME_BUDGET_MS * 3;
+
+      if (!catastrophic) {
+        sampleTotal += dt;
+        sampleCount++;
+        if (sampleCount < 12) return false;
+        const avg = sampleTotal / sampleCount;
+        sampleCount = 0;
+        sampleTotal = 0;
+        if (avg <= FRAME_BUDGET_MS) return false;
+      } else {
+        sampleCount = 0;
+        sampleTotal = 0;
+      }
+
+      if (qualityScale <= QUALITY_FLOOR && stepScale <= STEP_FLOOR / (software ? 130 : props.current.steps)) {
+        return false;
+      }
+
+      // Resolution first: it is the cheaper thing to lose. Ray steps shape the
+      // picture itself -- drop too many and the disc bands -- so they go second
+      // and stop at a floor.
+      if (qualityScale > QUALITY_FLOOR) {
+        qualityScale = Math.max(QUALITY_FLOOR, qualityScale * 0.75);
+      } else {
+        stepScale = Math.max(STEP_FLOOR / (software ? 130 : props.current.steps), stepScale * 0.8);
+      }
+
+      // Published so the current quality can be read from outside without
+      // instrumenting the render loop -- which is how this was confirmed to
+      // actually engage rather than assumed to.
+      host!.dataset.quality = `${qualityScale.toFixed(2)}/${stepScale.toFixed(2)}`;
+      return true;
+    }
+
     function resize() {
       const rect = host!.getBoundingClientRect();
       const dpr = software
@@ -886,9 +958,12 @@ export function BlackHoleHeroSection({
         : Math.min(window.devicePixelRatio || 1, Math.max(1, props.current.maxDpr));
       const cssW = Math.max(1, Math.round(rect.width));
       const cssH = Math.max(1, Math.round(rect.height));
-      const scale = software
-        ? 0.34
-        : Math.min(1, Math.max(0.4, props.current.resolution));
+      // The software branch multiplies by the adaptive scale too. It used to
+      // pin 0.34 and ignore it, which meant the one class of machine most
+      // likely to need further help was the only one that could not get it.
+      const scale =
+        (software ? 0.34 : Math.min(1, Math.max(0.4, props.current.resolution))) *
+        qualityScale;
       const w = Math.max(2, Math.round(cssW * dpr));
       const h = Math.max(2, Math.round(cssH * dpr));
       const sw = Math.max(2, Math.round(w * scale));
@@ -994,7 +1069,10 @@ export function BlackHoleHeroSection({
       gl!.uniform2f(u.uFocus!, C.focus[0], 1 - C.focus[1]);
       gl!.uniform1f(
         u.uSteps!,
-        software ? 130 : Math.max(60, Math.min(460, Math.round(C.steps)))
+        Math.max(
+          48,
+          Math.min(460, Math.round((software ? 130 : C.steps) * stepScale))
+        )
       );
       gl!.uniform1f(u.uSkyR!, Math.max(dist * 1.35, outer * 2.4));
       gl!.uniform1f(u.uDiskIn!, Math.max(1.05, C.diskInner));
@@ -1094,10 +1172,19 @@ export function BlackHoleHeroSection({
       if (!running) return;
       raf = requestAnimationFrame(tick);
       if (!visible) { lastFrame = now; return; }
-      const dt = lastFrame ? Math.min(0.05, (now - lastFrame) / 1000) : 0;
+      const elapsedMs = lastFrame ? now - lastFrame : 0;
+      const dt = lastFrame ? Math.min(0.05, elapsedMs / 1000) : 0;
       lastFrame = now;
       if (!props.current.paused && !reduced) clock += dt;
       render(clock);
+
+      // Measured after the draw call is queued, so it reflects what the last
+      // frame actually cost rather than what this one is about to.
+      if (elapsedMs > 0 && considerDegrading(elapsedMs)) {
+        // Force resize() past its unchanged-dimensions early return.
+        width = height = sceneW = sceneH = 0;
+        resize();
+      }
     }
 
     if (!build()) {
