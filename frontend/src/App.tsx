@@ -7,10 +7,24 @@ import { WhyAGraph } from "@/components/sections/WhyAGraph";
 import { Capabilities } from "@/components/sections/Capabilities";
 import { HowItWorks } from "@/components/sections/HowItWorks";
 import { Console } from "@/components/sections/Console";
+import { Docs } from "@/components/sections/Docs";
 
 const REPO_URL = "https://github.com/Jhaycrypt001/adit";
 
-type View = "home" | "console";
+type View = "home" | "console" | "docs";
+
+const VIEW_HASH: Record<View, string> = {
+  home: "",
+  console: "#console",
+  docs: "#docs",
+};
+
+function viewFromHash(): View {
+  const h = window.location.hash;
+  if (h === "#console") return "console";
+  if (h === "#docs") return "docs";
+  return "home";
+}
 
 /**
  * Two views, no router.
@@ -21,12 +35,10 @@ type View = "home" | "console";
  * button still works -- which is the part of routing that actually matters here.
  */
 export default function App() {
-  const [view, setView] = useState<View>(
-    () => (window.location.hash === "#console" ? "console" : "home"),
-  );
+  const [view, setView] = useState<View>(viewFromHash);
 
   useEffect(() => {
-    const sync = () => setView(window.location.hash === "#console" ? "console" : "home");
+    const sync = () => setView(viewFromHash());
     window.addEventListener("hashchange", sync);
     return () => window.removeEventListener("hashchange", sync);
   }, []);
@@ -34,8 +46,8 @@ export default function App() {
   const go = useCallback((next: View) => {
     // Writing the hash fires `hashchange`, which sets the state -- one path in,
     // so the two can't disagree.
-    window.location.hash = next === "console" ? "#console" : "";
-    if (next === "console") window.scrollTo({ top: 0 });
+    window.location.hash = VIEW_HASH[next];
+    if (next !== "home") window.scrollTo({ top: 0 });
     setView(next);
   }, []);
 
@@ -50,6 +62,7 @@ export default function App() {
       },
     },
     { label: "Console", onClick: openConsole },
+    { label: "Docs", onClick: () => go("docs") },
     { label: "Source", onClick: () => window.open(REPO_URL, "_blank", "noreferrer") },
   ];
 
@@ -57,6 +70,8 @@ export default function App() {
     <div className="relative w-full overflow-x-hidden bg-background">
       {view === "console" ? (
         <Console onBack={() => go("home")} />
+      ) : view === "docs" ? (
+        <Docs onBack={() => go("home")} />
       ) : (
         <>
           {/* z-10 and an opaque background: the footer below is position:fixed,

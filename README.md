@@ -1,11 +1,36 @@
 # Adit
 
-**A reachability engine.** One question, over a graph:
+**Does your code actually reach that vulnerability — or is it just in your lockfile?**
 
-> Does a path exist from A to B — and if so, show it. If not, say so.
+Adit answers that as a graph traversal, and shows the call path: your file and
+line, across the package boundary, down to the vulnerable function inside
+`node_modules`. Not a severity score. A path.
 
-Its first application: *does your code actually **reach** the vulnerable function
-four levels deep in your lockfile?*
+```
+npm audit  →  "4 vulnerabilities"          ← which ones can actually run?
+adit trace →  "2 actionable, 3 not reachable, here is each path"
+```
+
+**In one minute:**
+
+```bash
+git clone https://github.com/Jhaycrypt001/adit && cd adit
+docker compose up -d                                   # HydraDB + the API
+pip install -e .
+npm --prefix examples/demo-app install --ignore-scripts
+adit trace examples/demo-app                           # ← the whole product
+```
+
+| | |
+|---|---|
+| **What it is** | A reachability engine. One primitive: *does a path exist from A to B, and what is it?* |
+| **First application** | Transitive vulnerability reachability — the [95% problem](https://www.kusari.dev/blog/why-transitive-dependencies-biggest-software-supply-chain-blind-spot-2026) that stops at direct dependencies in every other tool |
+| **Why a graph** | Similarity search cannot compute reachability. Two functions that look alike have no call edge between them. |
+| **Built on** | [HydraDB](https://github.com/hydra-db/hydradb) over Bolt — `algo.MSpaths` resolves every entrypoint against every advisory in one server-side call ([47.6× measured](#measured-algomspaths-vs-client-side-fan-out)) |
+| **Surfaces** | CLI · MCP server · HTTP API · web console — all over one `scan()` |
+| **Scope** | TypeScript/JavaScript, npm. One language done properly. |
+
+---
 
 Real output, verbatim, from the worked example in `examples/demo-app` — run it
 yourself and you will get this, which is the standard `README.md` and
@@ -71,11 +96,21 @@ Most tools conflate these. Adit classifies first, then picks the query:
 ## Quick start
 
 ```bash
-docker compose up -d          # HydraDB on bolt://127.0.0.1:7687
-pip install -e ".[dev]"
-adit trace /path/to/a/repo    # the product
-pytest -m integration         # proves the kernel against a live engine
+docker compose up -d          # HydraDB on :7687, adit-api on :8420
+pip install -e .
+adit trace examples/demo-app  # the worked example above
+adit trace /path/to/your/repo # anything with a package.json
 ```
+
+The web console is a separate app:
+
+```bash
+cd frontend && npm install && npm run dev   # http://localhost:5173
+```
+
+If HydraDB starts rejecting writes with `PutMode::Update not yet implemented`,
+that is the [known upstream limitation](#limitations) in its local-filesystem
+storage backend — `docker compose down -v && docker compose up -d` clears it.
 
 ## Three surfaces, one pipeline
 
