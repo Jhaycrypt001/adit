@@ -267,14 +267,39 @@ adit why <source> <target>     # explain one reachability answer
         </P>
         <Code>{`# from the repo root
 vercel --cwd frontend`}</Code>
+        <P>
+          <K>VITE_API_URL</K> is read at <em>build</em> time, so changing it means
+          redeploying rather than restarting. It also has to be <K>https</K> — a
+          browser blocks plain-HTTP requests from an HTTPS page, and the console
+          reports that as an unreachable API with no obvious cause.
+        </P>
         <H3>Backend</H3>
         <P>
-          The API needs Docker, a persistent volume for HydraDB, and enough disk to
-          clone repositories and run <K>npm install</K>. It is not a serverless
-          workload — a scan is a slow synchronous job, so anything that caps
-          request duration at 10&ndash;60s will time out. Use a container host with
-          a real disk: Fly.io, Railway, Render, or any VPS running the compose file
-          as-is.
+          The API clones repositories, runs <K>npm install</K>, and needs a
+          persistent volume for HydraDB. That rules out serverless: a scan takes
+          40&ndash;90 seconds and needs disk, and functions have neither. Use a
+          container host — Railway, Fly.io, Render, or any VPS running the compose
+          file as-is — with two services, HydraDB and the API.
+        </P>
+        <P>
+          The API reads <K>PORT</K> if the platform injects one, so it needs no
+          port configuration. The setting most people get wrong is{" "}
+          <K>GRAPH_ADVERTISED_BOLT_ADDR</K>: it is the address HydraDB hands back
+          to clients, correct as <K>127.0.0.1</K> under compose and wrong as soon
+          as HydraDB is a separate service, where it must be the private hostname
+          the API dials.
+        </P>
+        <P>
+          Full settings, sizing and the failure modes worth knowing are in{" "}
+          <a
+            href={`${REPO}/blob/main/DEPLOY.md`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            DEPLOY.md
+          </a>
+          .
         </P>
         <P>
           Without a backend the console still loads and explains exactly which

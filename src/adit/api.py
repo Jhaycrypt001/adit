@@ -60,6 +60,7 @@ Said here rather than left implicit.
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 from collections import defaultdict
@@ -397,10 +398,26 @@ def why_reachable(
     return _query()
 
 
+#: Port used when nothing in the environment says otherwise.
+DEFAULT_PORT = 8420
+
+
 def main() -> None:
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8420)  # noqa: S104 -- intended for hosted deployment
+    # `PORT` first, because that is how nearly every container host tells an
+    # app where to listen -- Railway, Render, Fly, Heroku and Cloud Run all
+    # inject it and route to it. Hard-coding 8420 means the platform health
+    # check hits a closed port and marks an otherwise healthy deploy as
+    # crashed, which is a miserable thing to debug from the outside.
+    # ADIT_API_PORT overrides it for anyone running several instances by hand.
+    raw = os.environ.get("ADIT_API_PORT") or os.environ.get("PORT") or str(DEFAULT_PORT)
+    try:
+        port = int(raw)
+    except ValueError:
+        raise SystemExit(f"invalid port {raw!r}: set PORT or ADIT_API_PORT to an integer") from None
+
+    uvicorn.run(app, host="0.0.0.0", port=port)  # noqa: S104 -- intended for hosted deployment
 
 
 if __name__ == "__main__":

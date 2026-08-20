@@ -80,7 +80,14 @@ services:
       GRAPH_CELLS: cell-0
       GRAPH_NODE_ID: node-0
       GRAPH_BOLT_NODE_ADDRESSES: node-0=0.0.0.0:7687
-      GRAPH_ADVERTISED_BOLT_ADDR: 127.0.0.1:7687
+      # The address HydraDB hands back to Bolt clients for follow-up
+      # connections. `127.0.0.1` is right only while the client shares a
+      # network namespace with nothing in between -- true for compose, false
+      # the moment HydraDB is a separate service on a hosting platform, where
+      # it has to advertise the private hostname the API dials instead
+      # (e.g. `hydradb.railway.internal:7687`). Overridable so that is a
+      # setting rather than a fork of this file.
+      GRAPH_ADVERTISED_BOLT_ADDR: ${GRAPH_ADVERTISED_BOLT_ADDR:-127.0.0.1:7687}
       GRAPH_DATA_CACHE_DIR: /data/cache
       GRAPH_AUTH_TOKEN_FILE: /data/auth-token
       GRAPH_ALLOW_PLAINTEXT: "true"
