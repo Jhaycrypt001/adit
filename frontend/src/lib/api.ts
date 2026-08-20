@@ -1,6 +1,32 @@
 import type { ApiErrorBody, BlastResult, ScanReport, WhyResult } from "./types";
 
-const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8420";
+/**
+ * Normalise whatever was put in `VITE_API_URL`.
+ *
+ * Two mistakes are near-universal when this is typed into a hosting
+ * dashboard, and both fail in a way that points at the wrong thing:
+ *
+ *   `api-x.up.railway.app`    a bare host with no scheme is a *relative* URL
+ *                             to `fetch`, so the request goes to
+ *                             `your-site.vercel.app/api-x.up.railway.app/...`
+ *                             and the console reports the API as unreachable
+ *                             while the API is perfectly healthy.
+ *   `https://api-x.../`       a trailing slash yields `...//health`, which
+ *                             some routers accept and others 404.
+ *
+ * Neither is worth a support round trip, so both are repaired here. A bare
+ * host is assumed https: this app is served over https in every deployment,
+ * and a browser blocks plain http from an https page anyway.
+ */
+function normaliseBaseUrl(raw: string | undefined): string {
+  const value = (raw ?? "").trim();
+  if (!value) return "http://localhost:8420";
+
+  const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  return withScheme.replace(/\/+$/, "");
+}
+
+const BASE_URL = normaliseBaseUrl(import.meta.env.VITE_API_URL as string | undefined);
 
 export const API_BASE_URL = BASE_URL;
 
