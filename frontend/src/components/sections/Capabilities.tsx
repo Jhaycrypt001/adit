@@ -1,49 +1,55 @@
 import CarouselStacked, { type Slide } from "@/components/ui/carousel-07";
+import {
+  AbstentionVisual,
+  BindingVisual,
+  BlastRadiusVisual,
+  ReachabilityVisual,
+  TemporalVisual,
+} from "@/components/ui/capability-visuals";
 
 /**
  * The five questions the one kernel answers. They are the same traversal with a
  * different sort key, which is the actual reason a single engine covers all
  * three hackathon tracks without special-casing the query layer.
+ *
+ * Each card carries a diagram of its own query rather than a photograph. Stock
+ * imagery of circuit boards said nothing about reachability and read as filler
+ * to exactly the audience this page is written for.
  */
 const SLIDES: Slide[] = [
   {
-    image:
-      "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80",
+    visual: <ReachabilityVisual className="h-full w-full" />,
     title: "Reachability",
     description:
       "Does a call path exist from one of your entrypoints to the vulnerable function, four levels deep in the lockfile?",
     badge: "Runtime CVE",
   },
   {
-    image:
-      "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=800&q=80",
+    visual: <BlastRadiusVisual className="h-full w-full" />,
     title: "Blast radius",
     description:
       "A preinstall hook already ran. Reachability is meaningless here, so the question inverts: who resolved it, and how far does it reach?",
     badge: "Install-time",
   },
   {
-    image:
-      "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=800&q=80",
+    visual: <TemporalVisual className="h-full w-full" />,
     title: "Temporal validity",
     description:
       "Was the bad version live in the window your lockfile resolved it? Every edge carries valid_from and valid_to, so this is a range predicate.",
     badge: "Bitemporal",
   },
   {
-    image:
-      "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=800&q=80",
+    visual: <AbstentionVisual className="h-full w-full" />,
     title: "Abstention",
     description:
       "The traversal returns empty and Adit says so, with the frontier it actually explored. A vector index can only ever guess.",
     badge: "Not found",
   },
   {
-    image:
-      "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=800&q=80",
+    visual: <BindingVisual className="h-full w-full" />,
     title: "Cross-package binding",
     description:
-      "Bind `import { merge } from 'lodash'` to lodash's own internal symbol. Lazy by design: only packages on a path to an advisory are ever parsed.",
+      "Bind an import specifier to the package's own internal symbol. Lazy by design: only packages on a path to an advisory are ever parsed.",
     badge: "The hard part",
   },
 ];

@@ -243,3 +243,53 @@ def test_temporal_window_filters_facts(graph, hydra, start, end, expect_hit):
     if expect_hit:
         assert rows[0]["source"] == "lockfile"
         assert rows[0]["valid_from"] == 1_000
+
+
+# -- multi-tenant isolation, proven against the live engine ------------------
+
+
+def test_a_scan_never_traverses_another_scans_subgraph(hydra):
+    """The isolation the hosted API promises, tested the only way that counts.
+
+    Tenant A writes a real two-hop call chain. Tenant B writes the SAME
+    canonical keys -- as it would for any dependency both tenants share -- but
+    no edges whatsoever. Asking B whether its entrypoint reaches the target
+    must answer no.
+
+    Before `skey` existed this returned A's fully populated path to B, because
+    algo.MSpaths matched the bare `key` property, which is identical across
+    tenants by construction. That is simultaneously a cross-tenant disclosure
+    and a false `reachable` verdict -- the failure mode this project treats as
+    disqualifying, so it gets a live regression test rather than a unit one.
+    """
+    from adit.graph.ids import scan_scope
+
+    src = k("iso/entry")
+    mid = k("iso/middle")
+    dst = k("iso/target")
+
+    def sym(key: str) -> Node:
+        return Node(key=key, label=Label.SYMBOL, props={"name": key.rsplit("/", 1)[-1]})
+
+    with scan_scope("tenant-a"):
+        wa = Writer(hydra)
+        wa.upsert_nodes([sym(src), sym(mid), sym(dst)])
+        wa.create_edges(Edge.CALLS, [(src, mid), (mid, dst)])
+
+    with scan_scope("tenant-b"):
+        wb = Writer(hydra)
+        wb.upsert_nodes([sym(src), sym(dst)])  # endpoints only, deliberately no edges
+
+    with scan_scope("tenant-b"):
+        result = Queries(hydra).reachability([src], [dst], rel=Edge.CALLS, max_len=6)
+
+    assert not result.reachable, (
+        "tenant B wrote no edges but was handed a path -- traversal crossed "
+        f"into another tenant's subgraph: {result.shortest}"
+    )
+
+    # And the positive half: A, which did write the edges, must still find it.
+    with scan_scope("tenant-a"):
+        mine = Queries(hydra).reachability([src], [dst], rel=Edge.CALLS, max_len=6)
+    assert mine.reachable, "isolation broke the query it was supposed to protect"
+    assert mine.shortest is not None and mine.shortest.depth == 2

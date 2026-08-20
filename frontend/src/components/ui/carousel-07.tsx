@@ -11,7 +11,9 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 export interface Slide {
-  image: string;
+  /** A diagram of the query this card describes. Deliberately not a photograph
+   *  -- see capability-visuals.tsx for why stock imagery was dropped. */
+  visual: React.ReactNode;
   title: string;
   description: string;
   badge: string;
@@ -243,25 +245,38 @@ const Card = ({ slide, index, total, progress, config }: CardProps) => {
     <motion.div
       style={{ x, rotate, y, scale, opacity, zIndex }}
       className={cn(
-        "absolute overflow-hidden rounded-2xl bg-muted group pointer-events-none",
+        "group pointer-events-none absolute overflow-hidden rounded-2xl",
+        "border border-border bg-[oklch(0.145_0.006_60)]",
         "h-56 w-44 sm:h-80 sm:w-56 lg:h-96 lg:w-64",
       )}
     >
-      <img
-        src={slide.image}
-        alt=""
-        loading="lazy"
-        className="pointer-events-none absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+      {/* A faint grid so the diagram reads as a plotted figure rather than
+          floating in a void, masked out before it reaches the caption. */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.35]"
+        style={{
+          backgroundSize: "22px 22px",
+          backgroundImage:
+            "linear-gradient(to right, oklch(0.24 0.008 60) 1px, transparent 1px), linear-gradient(to bottom, oklch(0.24 0.008 60) 1px, transparent 1px)",
+          maskImage: "linear-gradient(to bottom, black 0%, black 45%, transparent 72%)",
+          WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 45%, transparent 72%)",
+        }}
       />
+
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex h-[58%] items-center justify-center px-3">
+        <div className="h-full w-full transition-transform duration-700 group-hover:scale-105">
+          {slide.visual}
+        </div>
+      </div>
 
       <motion.div
         style={{ opacity: shade }}
         className="pointer-events-none absolute inset-0 bg-black"
       />
 
-      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
 
-      <Badge className="absolute top-3 right-3 rounded-full bg-white/95 px-2 py-0.5 text-xs font-bold uppercase tracking-widest text-black backdrop-blur-md sm:top-5 sm:right-5 sm:px-3 sm:py-1 lg:top-6 lg:right-6">
+      <Badge className="absolute left-3 top-3 rounded-full border border-border bg-background/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground backdrop-blur-md sm:left-5 sm:top-5 sm:px-2.5 lg:left-6 lg:top-6">
         {slide.badge}
       </Badge>
 

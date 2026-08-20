@@ -49,6 +49,7 @@ Said here rather than left implicit.
 
 from __future__ import annotations
 
+import threading
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -85,11 +86,42 @@ MAX_LEN_CEILING = 30
 
 _SCAN_WINDOW_SECONDS = 600
 _SCAN_LIMIT_PER_WINDOW = 5
+#: Sweep expired clients once the table is bigger than this. Not a cap on
+#: clients -- just the point past which the sweep is worth the walk.
+_SCAN_CLIENT_SWEEP_THRESHOLD = 512
 _scan_history: dict[str, list[float]] = defaultdict(list)
+
+#: Concurrent `/scan` runs allowed in this process.
+#:
+#: `/scan` is synchronous and slow -- a real repository takes tens of seconds
+#: across clone, install, OSV and ingest -- and FastAPI runs sync endpoints on a
+#: bounded worker threadpool. Left unbounded, enough simultaneous scans occupy
+#: every worker and the whole API stops answering, including `/health`. This
+#: sheds load with an honest 503 instead, so the cheap endpoints stay up.
+_MAX_CONCURRENT_SCANS = 4
+_scan_slots = threading.BoundedSemaphore(_MAX_CONCURRENT_SCANS)
 
 
 def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
+
+
+def _evict_expired_clients(now: float) -> None:
+    """Drop clients whose whole window has aged out.
+
+    Without this the dict grows one permanent entry per distinct source IP and
+    never shrinks: the per-client list was pruned, but the key itself was
+    immortal. Over a long-lived process facing the open internet that is an
+    unbounded memory leak keyed by attacker-chosen input, which is a cheap way
+    to be taken down by anyone with a spare /64.
+    """
+    stale = [
+        ip
+        for ip, hist in _scan_history.items()
+        if not hist or now - hist[-1] >= _SCAN_WINDOW_SECONDS
+    ]
+    for ip in stale:
+        del _scan_history[ip]
 
 
 def _check_scan_rate_limit(request: Request) -> None:
@@ -100,6 +132,12 @@ def _check_scan_rate_limit(request: Request) -> None:
     """
     ip = _client_ip(request)
     now = time.monotonic()
+
+    # Sweeping on write keeps this O(clients) on an endpoint that already costs
+    # a clone and a full pipeline run, so the sweep is free by comparison.
+    if len(_scan_history) > _SCAN_CLIENT_SWEEP_THRESHOLD:
+        _evict_expired_clients(now)
+
     history = _scan_history[ip]
     history[:] = [t for t in history if now - t < _SCAN_WINDOW_SECONDS]
     if len(history) >= _SCAN_LIMIT_PER_WINDOW:
@@ -155,6 +193,19 @@ def scan_repo(req: ScanRequest, request: Request) -> dict[str, Any]:
     """
     _check_scan_rate_limit(request)
 
+    # Non-blocking: a caller that has to wait is better told so immediately
+    # than parked holding a threadpool worker, which is how the whole API
+    # starves. `Retry-After` makes that actionable rather than opaque.
+    if not _scan_slots.acquire(blocking=False):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"at capacity: {_MAX_CONCURRENT_SCANS} scans already running. "
+                f"Retry shortly."
+            ),
+            headers={"Retry-After": "30"},
+        )
+
     scan_id = uuid4().hex
     try:
         with cloned_repo(req.repo_url) as root:
@@ -181,6 +232,11 @@ def scan_repo(req: ScanRequest, request: Request) -> dict[str, Any]:
         # trace -- confirmed one npm version could still produce this
         # even with that check in place.
         raise HTTPException(status_code=422, detail=f"could not parse lockfile: {exc}") from None
+    finally:
+        # Every path, including the unhandled-exception one. A slot leaked here
+        # is permanent: the process would shed load forever with no scan
+        # actually running.
+        _scan_slots.release()
 
     body = to_json(report)
     body["scan_id"] = scan_id
@@ -268,8 +324,16 @@ def why_reachable(
         return {
             "reachable": True,
             "depth": path.depth,
+            # Same reasoning as render.to_json: `key` is what every other
+            # endpoint addresses nodes by, so a client that can see a path must
+            # be able to name the nodes in it.
             "path": [
-                {"name": n.get("name"), "file": n.get("file"), "line": n.get("line")}
+                {
+                    "key": n.get("key"),
+                    "name": n.get("name"),
+                    "file": n.get("file"),
+                    "line": n.get("line"),
+                }
                 for n in path.nodes
             ],
         }

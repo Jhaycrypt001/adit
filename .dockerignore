@@ -15,4 +15,3 @@ scripts/
 # `readme = "README.md"` and hatchling's metadata build fails outright
 # without it actually present in the build context (confirmed).
 ARCHITECTURE.md
-ROADMAP.md

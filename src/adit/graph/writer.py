@@ -17,7 +17,7 @@ import logging
 from collections.abc import Sequence
 
 from .driver import Hydra
-from .ids import IdRegistry, fact_key, node_id
+from .ids import IdRegistry, fact_key, node_id, scoped_key
 from .schema import INVERSE_OF, Edge, Fact, Label, Node, validate_props
 
 log = logging.getLogger(__name__)
@@ -56,10 +56,20 @@ class Writer:
 
         total = 0
         for (label, prop_names), group in groups.items():
-            assigns = ", ".join(f"n.{p} = r.{p}" for p in ("key", *prop_names))
+            # `skey` rides alongside `key` on every node. `key` is the canonical
+            # identity that gets rendered; `skey` is the same thing with the
+            # scan namespace folded in, and is the only property traversal is
+            # allowed to match on -- see ids.scoped_key for why.
+            assigns = ", ".join(f"n.{p} = r.{p}" for p in ("key", "skey", *prop_names))
             cypher = _UPSERT.format(label=label.value, assigns=assigns)
             rows = [
-                {"id": self.ids.register(n.key), "key": n.key, **n.props} for n in group
+                {
+                    "id": self.ids.register(n.key),
+                    "key": n.key,
+                    "skey": scoped_key(n.key),
+                    **n.props,
+                }
+                for n in group
             ]
             total += self.hydra.run_batched(cypher, rows)
             log.debug("upserted %d %s nodes", len(rows), label.value)

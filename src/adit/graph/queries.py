@@ -19,7 +19,7 @@ from typing import Any
 
 from . import cypher
 from .driver import Hydra
-from .ids import node_id
+from .ids import node_id, scoped_key
 from .schema import INVERSE_OF, Edge, FactKind, Label
 
 
@@ -96,10 +96,14 @@ class Queries:
         if not source_keys or not target_keys:
             return Reachability(False, [], len(source_keys), len(target_keys), max_len)
 
+        # Scoped here rather than inside cypher.mspaths: this is the layer that
+        # knows these are bare canonical keys. Without it the traversal matches
+        # every scan that ever wrote the same key -- proven to return another
+        # tenant's path to a caller whose own graph had no edges at all.
         query = cypher.mspaths(
             source_label=source_label.value,
-            source_keys=source_keys,
-            target_keys=target_keys,
+            source_keys=[scoped_key(k) for k in source_keys],
+            target_keys=[scoped_key(k) for k in target_keys],
             rel_types=[rel.value],
             direction="outgoing",
             max_len=max_len,

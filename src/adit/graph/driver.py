@@ -122,8 +122,28 @@ class Hydra:
 
         `algo.MSpaths` is the only construct that returns a traversable Path
         object, so it needs a result handler that does not flatten to dicts.
+
+        Retries and session handling are identical to `run()` on purpose. This
+        used to call the session directly, which meant the single query the
+        whole product is built on -- reachability -- was the one query with no
+        retry and no session recycling: a blip that `run()` would have absorbed
+        surfaced as a failed scan, and left the cached session wedged for every
+        call after it.
         """
-        return [r["path"] for r in self._get_session().run(cypher, **params)]
+        delay = 0.25
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                return [r["path"] for r in self._get_session().run(cypher, **params)]
+            except (TransientError, ServiceUnavailable) as exc:
+                self._drop_session()
+                if attempt == self.max_retries:
+                    raise
+                log.warning("transient paths (%s/%s): %s", attempt, self.max_retries, exc)
+                time.sleep(delay)
+                delay *= 2
+            except Neo4jError:
+                raise
+        return []  # unreachable
 
     def run_batched(self, cypher: str, rows: Sequence[dict[str, Any]]) -> int:
         """Run an UNWIND statement over `rows`, chunked to the engine limit.

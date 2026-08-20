@@ -90,8 +90,13 @@ def mspaths(
     node properties intact. It also resolves every (source, target) pair in one
     server-side call instead of `len(sources) * len(targets)` round trips.
 
-    Matching is on the string `key` property, because MSpaths requires
-    `sourceValues` to be a list of strings while node `id` must be an integer.
+    Matching is on the string `skey` property, because MSpaths requires
+    `sourceValues` to be a list of strings while node `id` must be an integer --
+    and `skey` rather than `key` because `key` is identical across scans of the
+    same dependency, so matching it let a traversal walk straight into another
+    tenant's subgraph. `queries.reachability` is responsible for passing values
+    already put through `ids.scoped_key`; this function will not scope them,
+    because it has no way to tell an already-scoped key from a bare one.
     """
     if direction not in {"outgoing", "incoming", "both"}:
         raise UnsafeCypherValue(f"bad direction: {direction!r}")
@@ -103,7 +108,7 @@ def mspaths(
     rels = "[" + ", ".join(f"'{safe_ident(r)}'" for r in rel_types) + "]"
     return (
         "CALL algo.MSpaths({"
-        f"sourceLabel: '{safe_ident(source_label)}', sourceProperty: 'key', "
+        f"sourceLabel: '{safe_ident(source_label)}', sourceProperty: 'skey', "
         f"sourceValues: {string_list(source_keys)}, "
         f"targetValues: {string_list(target_keys)}, "
         f"relTypes: {rels}, relDirection: '{direction}', "

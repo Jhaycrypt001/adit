@@ -137,9 +137,20 @@ def to_json(report: ScanReport) -> dict:
                 if f.resolution
                 else None
             ),
+            # `key` is projected deliberately. Without it a client could render
+            # a path but not ask a follow-up question about any node in it:
+            # /why takes exact canonical keys and refuses to guess at bare
+            # names, so a UI built on this payload had no way to obtain the one
+            # input that endpoint accepts. Name/file/line are for display; key
+            # is the identity the rest of the API is addressed by.
             "paths": [
                 [
-                    {"name": n.get("name"), "file": n.get("file"), "line": n.get("line")}
+                    {
+                        "key": n.get("key"),
+                        "name": n.get("name"),
+                        "file": n.get("file"),
+                        "line": n.get("line"),
+                    }
                     for n in p.nodes
                 ]
                 for p in f.paths

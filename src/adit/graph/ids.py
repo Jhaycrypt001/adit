@@ -78,6 +78,42 @@ def node_id(key: str) -> int:
     return int.from_bytes(digest, "big") & _MASK
 
 
+#: Separator between namespace and key in a scoped key. `|` cannot occur in any
+#: canonical key this module builds, and is already inside `cypher._SAFE_KEY`'s
+#: allowlist, so a scoped key inlines exactly like a bare one.
+_NS_SEP = "|"
+
+
+def scoped_key(key: str) -> str:
+    """The key as `algo.MSpaths` must match it.
+
+    `node_id()` folds the namespace in, so every query anchored on
+    `{id: node_id(k)}` is isolated per scan for free. MSpaths cannot be: it
+    requires `sourceValues` to be a list of *strings* and matches them against
+    a string property, so pointing it at the bare `key` made it match every
+    tenant's node with that key at once.
+
+    That was not theoretical. A scan that wrote no edges at all could be handed
+    a fully populated call path built entirely from another scan's nodes --
+    both a cross-tenant disclosure and a false `reachable` verdict, which is
+    the one failure mode this project treats as unacceptable. Nodes therefore
+    carry `skey` alongside `key`: `key` stays the clean canonical identity used
+    for display and output, `skey` is what traversal matches on.
+
+    Length-prefixed rather than merely delimited. `node_id` can separate its
+    two halves with a null byte; this cannot, because the value has to survive
+    inlining into Cypher through `cypher._SAFE_KEY`, whose allowlist contains
+    no character a key is guaranteed to lack. Writing the namespace's length in
+    front makes the split unambiguous whatever either half contains -- without
+    it, namespace `a` with key `b|c` and namespace `a|b` with key `c` both
+    produce `a|b|c`, and two tenants silently share a traversal space again.
+    """
+    ns = _namespace.get()
+    if ns is None:
+        return key
+    return f"{len(ns)}{_NS_SEP}{ns}{_NS_SEP}{key}"
+
+
 # --- canonical key builders ------------------------------------------------
 # One function per node kind so key format lives in exactly one place. Changing
 # a format changes every id derived from it, so these are effectively schema.

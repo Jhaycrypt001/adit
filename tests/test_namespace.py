@@ -8,7 +8,13 @@ from __future__ import annotations
 
 import threading
 
-from adit.graph.ids import current_namespace, node_id, scan_scope, symbol_key
+from adit.graph.ids import (
+    current_namespace,
+    node_id,
+    scan_scope,
+    scoped_key,
+    symbol_key,
+)
 
 
 def test_no_namespace_by_default():
@@ -84,3 +90,40 @@ def test_isolation_holds_under_real_concurrency():
         t.join()
 
     assert len(set(results.values())) == 8, "concurrent scans collided on identity"
+
+
+# -- the traversal-matching property ----------------------------------------
+#
+# node_id() namespacing covers every query anchored on `{id: ...}`, which is
+# all of them except one: algo.MSpaths needs a *string* property to match, so
+# reachability() is the single query whose isolation does not come for free.
+
+
+def test_scoped_key_differs_per_namespace():
+    """The property MSpaths matches on must differ per scan, or a traversal
+    started in one scan can walk into another's subgraph."""
+    key = symbol_key("pkg", "1.0.0", "a.ts", "f")
+    with scan_scope("scan-a"):
+        a = scoped_key(key)
+    with scan_scope("scan-b"):
+        b = scoped_key(key)
+    assert a != b
+    assert a.endswith(key) and b.endswith(key), "canonical key must remain recoverable"
+
+
+def test_scoped_key_is_the_bare_key_outside_any_scan():
+    """The CLI never opens a scan scope, and its nodes must stay matchable by
+    their plain canonical key exactly as before this property existed."""
+    key = symbol_key("pkg", "1.0.0", "a.ts", "f")
+    assert scoped_key(key) == key
+
+
+def test_scoped_key_has_no_ambiguous_concatenation():
+    """Same trap as node_id's null byte: 'a' + '|b|c' must not collide with
+    'a|b' + 'c'. The separator cannot occur in any canonical key builder's
+    output, which is what makes the split unambiguous."""
+    with scan_scope("a"):
+        one = scoped_key("b|c")
+    with scan_scope("a|b"):
+        two = scoped_key("c")
+    assert one != two

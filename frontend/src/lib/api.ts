@@ -2,20 +2,43 @@ import type { ApiErrorBody, BlastResult, ScanReport, WhyResult } from "./types";
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8420";
 
+export const API_BASE_URL = BASE_URL;
+
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, detail: string) {
+  /** Present when the failure was transport-level rather than an HTTP status:
+   *  the API is down, DNS failed, CORS blocked it. Worth distinguishing,
+   *  because the fix is "start the backend", not "fix your input". */
+  offline: boolean;
+
+  constructor(status: number, detail: string, offline = false) {
     super(detail);
     this.status = status;
+    this.offline = offline;
   }
 }
 
-async function request<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`);
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as ApiErrorBody | null;
-    throw new ApiError(res.status, body?.detail ?? res.statusText);
+async function toError(res: Response): Promise<ApiError> {
+  const body = (await res.json().catch(() => null)) as ApiErrorBody | null;
+  return new ApiError(res.status, body?.detail ?? res.statusText);
+}
+
+/** Fetch that reports an unreachable API as such instead of a bare TypeError. */
+async function send(path: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(`${BASE_URL}${path}`, init);
+  } catch {
+    throw new ApiError(
+      0,
+      `cannot reach the API at ${BASE_URL}. Start it with \`docker compose up -d\`.`,
+      true,
+    );
   }
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await send(path, init);
+  if (!res.ok) throw await toError(res);
   return res.json() as Promise<T>;
 }
 
@@ -26,10 +49,11 @@ export async function getHealth(): Promise<{ status: string }> {
 export interface ScanOptions {
   maxLen?: number;
   offline?: boolean;
+  signal?: AbortSignal;
 }
 
 export async function scanRepo(repoUrl: string, opts: ScanOptions = {}): Promise<ScanReport> {
-  const res = await fetch(`${BASE_URL}/scan`, {
+  return request("/scan", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -37,12 +61,8 @@ export async function scanRepo(repoUrl: string, opts: ScanOptions = {}): Promise
       max_len: opts.maxLen ?? 12,
       offline: opts.offline ?? false,
     }),
+    signal: opts.signal,
   });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as ApiErrorBody | null;
-    throw new ApiError(res.status, body?.detail ?? res.statusText);
-  }
-  return res.json() as Promise<ScanReport>;
 }
 
 export async function getBlastRadius(
