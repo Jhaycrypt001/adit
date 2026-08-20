@@ -112,10 +112,26 @@ missing. So we create them for it.
 3. Paste this on one line:
 
 ```sh
-sh -c "mkdir -p /tmp/adit/store /tmp/adit/cache; [ -f /tmp/adit/auth-token ] || printf '%s\n' \"$ADIT_SHARED_TOKEN\" > /tmp/adit/auth-token; exec /usr/local/bin/graph-node"
+sh -c "mkdir -p /tmp/adit/store /tmp/adit/cache; printf %s aditRailwayToken2026xKq7Mn4Pw9Rt2Vb5 > /tmp/adit/auth-token; exec /usr/local/bin/graph-node"
 ```
 
 4. Click **Deploy** (top right)
+
+> ### Why the token is written out in full here
+>
+> The obvious version uses the variable — `printf '%s\n' "$ADIT_SHARED_TOKEN"`
+> — and it fails on Railway. The start-command field parses the string before
+> the shell sees it, and the `\n` does not survive: what lands in the token
+> file is the token with an extra character on the end. HydraDB then rejects
+> every connection with `invalid credentials`, which looks like a networking
+> problem and is not.
+>
+> Writing the token literally, with no `$`, no quotes and no backslash
+> escapes, removes every layer that can mangle it. Confirmed by reading the
+> file back inside a running container: exactly 36 bytes, no newline.
+>
+> If you change the token, change it in **three** places: this command,
+> `ADIT_SHARED_TOKEN` on hydradb, and `ADIT_BOLT_TOKEN` on the api.
 
 ## 1.6 Did it work?
 
@@ -199,8 +215,8 @@ https://YOUR-URL.up.railway.app/health
 **If HydraDB is unreachable, check these three things:**
 
 1. `ADIT_BOLT_URI` says `hydradb.railway.internal` — matching the name from 1.2
-2. `ADIT_BOLT_TOKEN` (api) is character-for-character the same as
-   `ADIT_SHARED_TOKEN` (hydradb)
+2. `ADIT_BOLT_TOKEN` (api) is character-for-character the same as the token
+   written by the hydradb start command in 1.5
 3. `GRAPH_ADVERTISED_BOLT_ADDR` on hydradb is **not** `127.0.0.1`
 
 ---
