@@ -3,6 +3,7 @@ import { ApiError, getBlastRadius } from "@/lib/api";
 import type { BlastResult } from "@/lib/types";
 import type { ReportSummary } from "@/lib/report";
 import { CopyButton } from "./CopyButton";
+import { RadiusGraph } from "./charts";
 
 interface Props {
   scanId: string | null;
@@ -173,6 +174,19 @@ export function BlastPanel({ scanId, summary, initialSpec = "" }: Props) {
                   </li>
                 ))}
               </ul>
+            </section>
+          )}
+
+          {result.dependent_packages.length > 0 && (
+            <section className="rounded-xl border border-border bg-card/40 p-4">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Reverse transitive closure
+              </h3>
+              <RadiusGraph
+                centre={result.package}
+                dependents={result.dependent_packages}
+                exposed={result.exposed_services.length}
+              />
             </section>
           )}
 

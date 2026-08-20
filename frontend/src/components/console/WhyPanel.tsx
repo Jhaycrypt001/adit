@@ -3,6 +3,7 @@ import { ApiError, whyReachable } from "@/lib/api";
 import type { WhyResult } from "@/lib/types";
 import type { ReportSummary, SymbolOption } from "@/lib/report";
 import { CopyButton } from "./CopyButton";
+import { PathGraph } from "./charts";
 
 interface Props {
   scanId: string | null;
@@ -197,35 +198,15 @@ export function WhyPanel({ scanId, summary, initialSource = "", initialTarget = 
                   shortest path is {result.depth} hop{result.depth === 1 ? "" : "s"}
                 </span>
               </div>
-              <ol className="mt-4 flex flex-col gap-0">
-                {result.path?.map((n, i) => {
-                  const last = i === (result.path?.length ?? 0) - 1;
-                  return (
-                    <li key={i} className="flex gap-3">
-                      <div className="flex flex-col items-center">
-                        <span
-                          className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${last ? "bg-destructive" : "bg-primary"}`}
-                        />
-                        {!last && <span className="w-px flex-1 bg-border" />}
-                      </div>
-                      <div className={`min-w-0 flex-1 ${last ? "pb-0" : "pb-4"}`}>
-                        <p className="font-mono text-sm text-foreground">
-                          {n.name ?? "?"}
-                          {last && (
-                            <span className="ml-2 text-xs text-destructive">← vulnerable</span>
-                          )}
-                        </p>
-                        {n.file && (
-                          <p className="font-mono text-[11px] text-muted-foreground">
-                            {n.file}
-                            {n.line != null ? `:${n.line}` : ""}
-                          </p>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+              <div className="mt-4">
+                <PathGraph
+                  nodes={(result.path ?? []).map((n, i, arr) => ({
+                    label: n.name ?? "?",
+                    sub: n.file ? `${n.file}${n.line != null ? `:${n.line}` : ""}` : null,
+                    terminal: i === arr.length - 1,
+                  }))}
+                />
+              </div>
               <div className="mt-4">
                 <CopyButton
                   value={(result.path ?? [])

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { Finding, PathNode, ScanReport } from "@/lib/types";
 import { filterFindings, severityLabel, type StatusFilter } from "@/lib/report";
 import { CopyButton } from "./CopyButton";
+import { PathGraph } from "./charts";
 
 const statusStyle: Record<Finding["status"], string> = {
   reachable: "bg-destructive/15 text-destructive ring-destructive/30",
@@ -34,33 +35,13 @@ function PathChain({
   const last = nodes[nodes.length - 1]?.key;
   return (
     <div className="rounded-lg border border-border bg-background/60 p-3">
-      <ol className="flex flex-col gap-0">
-        {nodes.map((n, i) => {
-          const isLast = i === nodes.length - 1;
-          return (
-            <li key={i} className="flex gap-3">
-              <div className="flex flex-col items-center">
-                <span
-                  className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${isLast ? "bg-destructive" : "bg-primary"}`}
-                />
-                {!isLast && <span className="w-px flex-1 bg-border" />}
-              </div>
-              <div className={`min-w-0 flex-1 ${isLast ? "" : "pb-3"}`}>
-                <p className="font-mono text-xs text-foreground">
-                  {n.name ?? "?"}
-                  {isLast && <span className="ml-2 text-destructive">← vulnerable</span>}
-                </p>
-                {n.file && (
-                  <p className="font-mono text-[11px] text-muted-foreground">
-                    {n.file}
-                    {n.line != null ? `:${n.line}` : ""}
-                  </p>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+      <PathGraph
+        nodes={nodes.map((n, i) => ({
+          label: n.name ?? "?",
+          sub: n.file ? `${n.file}${n.line != null ? `:${n.line}` : ""}` : null,
+          terminal: i === nodes.length - 1,
+        }))}
+      />
       {onAskWhy && first && last && (
         <button
           type="button"

@@ -64,6 +64,21 @@
   --input: oklch(0.27 0.006 60);
   --ring: oklch(0.78 0.155 55);
 
+  /* Status triad for the console's charts. Reserved for state -- never reused
+     as a "series 4" -- and never carrying meaning on their own: every segment
+     and tile that uses one also carries its label.
+
+     Not eyeballed. Validated against the card surface (#0f0d0b) with the
+     dataviz palette checker: lightness band, chroma floor, CVD separation,
+     normal-vision floor and contrast all pass. The amber/green pair sits at
+     ΔE 7.9 for protanopia, which is inside the floor band and therefore only
+     legal alongside secondary encoding -- hence the direct labels and the 2px
+     surface gaps between stacked segments. Lighter Tailwind steps (400-level)
+     were tried first and failed the lightness band outright on this surface. */
+  --status-critical: #ef4444;
+  --status-good: #059669;
+  --status-warning: #d97706;
+
   color-scheme: dark;
 }
 

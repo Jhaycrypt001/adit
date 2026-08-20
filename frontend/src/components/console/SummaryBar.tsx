@@ -1,38 +1,33 @@
 import type { ReportSummary } from "@/lib/report";
 import type { ScanReport } from "@/lib/types";
+import { BarList, SplitBar, type Segment } from "./charts";
 
-function Stat({
-  value,
-  label,
-  tone = "default",
+function Panel({
+  title,
+  children,
+  className = "",
 }: {
-  value: number | string;
-  label: string;
-  tone?: "default" | "danger" | "good" | "warn";
+  title: string;
+  children: React.ReactNode;
+  className?: string;
 }) {
-  const colour = {
-    default: "text-foreground",
-    danger: "text-destructive",
-    good: "text-emerald-400",
-    warn: "text-amber-400",
-  }[tone];
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border bg-card/40 px-4 py-3">
-      <span className={`text-2xl font-semibold leading-none tabular-nums ${colour}`}>
-        {value}
-      </span>
-      <span className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-        {label}
-      </span>
-    </div>
+    <section className={`rounded-xl border border-border bg-card/40 p-4 ${className}`}>
+      <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        {title}
+      </h3>
+      {children}
+    </section>
   );
 }
 
 /**
- * The counts a responder reads first.
+ * The verdict, then the evidence.
  *
- * `unresolved` gets its own tile rather than being folded into either reachable
- * bucket: it means the search never ran, and presenting that as "not reachable"
+ * A responder wants one number before anything else — how many of these do I
+ * have to act on today — so that is a hero number, not a tile in a row of five.
+ * `unresolved` stays its own count rather than folding into either reachable
+ * bucket: it means the search never ran, and reporting it as "not reachable"
  * would claim a search that never happened.
  */
 export function SummaryBar({
@@ -44,87 +39,106 @@ export function SummaryBar({
 }) {
   const timings = Object.entries(report.timings ?? {}).sort((a, b) => b[1] - a[1]);
 
+  const segments: Segment[] = [
+    { label: "Reachable", value: summary.reachable, tone: "critical" },
+    { label: "Unresolved", value: summary.unresolved, tone: "warning" },
+    { label: "Not reachable", value: summary.notReachable, tone: "good" },
+  ];
+
+  const clear = summary.actionable === 0;
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 className="font-mono text-sm font-semibold">{report.package}</h2>
-        <p className="font-mono text-[11px] text-muted-foreground">
-          {report.elapsed.toFixed(2)}s · scan_id {report.scan_id.slice(0, 12)}…
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        <Stat value={summary.total} label="Advisories" />
-        <Stat
-          value={summary.actionable}
-          label="Actionable"
-          tone={summary.actionable > 0 ? "danger" : "good"}
-        />
-        <Stat value={summary.reachable} label="Reachable" tone={summary.reachable ? "danger" : "default"} />
-        <Stat value={summary.notReachable} label="Not reachable" tone="good" />
-        <Stat
-          value={summary.unresolved}
-          label="Unresolved"
-          tone={summary.unresolved ? "warn" : "default"}
-        />
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-        {summary.severities.length > 0 && (
-          <span className="flex flex-wrap items-center gap-2">
-            <span className="uppercase tracking-[0.12em]">Severity</span>
-            {summary.severities.map((s) => (
+      {/* Hero verdict */}
+      <div
+        className="rounded-xl border p-5"
+        style={{
+          borderColor: clear ? "var(--status-good)" : "var(--status-critical)",
+          background: clear
+            ? "color-mix(in oklch, var(--status-good) 8%, transparent)"
+            : "color-mix(in oklch, var(--status-critical) 8%, transparent)",
+        }}
+      >
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="font-mono text-xs text-muted-foreground">{report.package}</p>
+            <p className="mt-2 flex items-baseline gap-3">
               <span
-                key={s.label}
-                className="rounded-full border border-border px-2 py-0.5 font-mono text-[11px]"
+                className="text-5xl font-semibold leading-none tabular-nums"
+                style={{ color: clear ? "var(--status-good)" : "var(--status-critical)" }}
               >
-                {s.label.toLowerCase()} {s.count}
+                {summary.actionable}
               </span>
-            ))}
-            <span className="text-[11px] normal-case tracking-normal opacity-70">
-              (vectors, not ratings &mdash; see each finding)
-            </span>
-          </span>
-        )}
-        <span className="flex items-center gap-2">
-          <span className="uppercase tracking-[0.12em]">Class</span>
-          <span className="rounded-full border border-border px-2 py-0.5 font-mono text-[11px]">
-            runtime {summary.runtime}
-          </span>
-          <span className="rounded-full border border-border px-2 py-0.5 font-mono text-[11px]">
-            install-time {summary.installTime}
-          </span>
-        </span>
+              <span className="text-lg font-medium">
+                of {summary.total} need action
+              </span>
+            </p>
+            <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+              {clear
+                ? "Every advisory here was searched and none is callable from an entrypoint. That is a completed search, not an absence of data."
+                : `${summary.reachable} reachable${summary.unresolved ? `, ${summary.unresolved} unresolved` : ""} — open the findings below for the exact call paths.`}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="font-mono text-xs text-muted-foreground">
+              {report.elapsed.toFixed(2)}s
+            </p>
+            <p className="font-mono text-[11px] text-muted-foreground/70">
+              {report.scan_id.slice(0, 12)}…
+            </p>
+          </div>
+        </div>
       </div>
 
-      {timings.length > 0 && (
-        <details className="text-xs">
-          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-            Stage timings
-          </summary>
-          <div className="mt-2 flex flex-col gap-1">
-            {timings.map(([stage, secs]) => {
-              const pct = report.elapsed > 0 ? Math.min(100, (secs / report.elapsed) * 100) : 0;
-              return (
-                <div key={stage} className="flex items-center gap-3">
-                  <span className="w-28 shrink-0 font-mono text-[11px] text-muted-foreground">
-                    {stage}
-                  </span>
-                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                    <span
-                      className="block h-full rounded-full bg-primary/70"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </span>
-                  <span className="w-14 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground">
-                    {secs.toFixed(2)}s
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </details>
-      )}
+      {/* Evidence */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Panel title="Outcome of every search" className="lg:col-span-2">
+          <SplitBar segments={segments} />
+        </Panel>
+
+        <Panel title="Advisory class">
+          <BarList
+            tone="neutral"
+            data={[
+              { label: "runtime", value: summary.runtime },
+              { label: "install-time", value: summary.installTime },
+            ].filter((d) => d.value > 0)}
+            emptyLabel="no advisories to classify"
+          />
+          <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+            Install-time advisories are answered by blast radius, not
+            reachability — the payload runs at install whether or not you call it.
+          </p>
+        </Panel>
+
+        <Panel title="Severity, as the feed reports it">
+          <BarList
+            tone="neutral"
+            data={summary.severities.map((s) => ({
+              label: s.label.toLowerCase(),
+              value: s.count,
+            }))}
+            emptyLabel="no severity data"
+          />
+          <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+            OSV publishes CVSS vectors, not ratings. Grouped by vector version
+            rather than scored here, because a wrong severity is worse than none.
+          </p>
+        </Panel>
+
+        {timings.length > 0 && (
+          <Panel title="Where the time went" className="lg:col-span-2">
+            <BarList
+              tone="neutral"
+              data={timings.map(([stage, secs]) => ({
+                label: stage,
+                value: Number(secs.toFixed(2)),
+                title: `${stage}: ${secs.toFixed(2)}s`,
+              }))}
+            />
+          </Panel>
+        )}
+      </div>
     </div>
   );
 }
