@@ -194,8 +194,43 @@ class ScanRequest(BaseModel):
     repo_url: str = Field(
         ..., description="A public https://github.com/<owner>/<repo> URL."
     )
+    subdir: str | None = Field(
+        None,
+        description=(
+            "Path within the repository holding package.json, for repositories "
+            "whose npm project is not at the root (a monorepo, or a service "
+            "beside a backend in another language). Example: 'frontend'."
+        ),
+    )
     max_len: int = Field(12, ge=1, le=MAX_LEN_CEILING)
     offline: bool = False
+
+
+def _resolve_subdir(root: Path, subdir: str | None) -> Path:
+    """Resolve `subdir` inside the clone, refusing anything that escapes it.
+
+    The clone directory is server-side and the subdirectory is caller-supplied,
+    which is precisely the shape that becomes a path-traversal read if the two
+    are simply joined. `..`, absolute paths and symlinks pointing outward all
+    resolve to somewhere outside `root`, so the check is one containment test
+    after full resolution rather than a blocklist of spellings.
+    """
+    if not subdir or not subdir.strip():
+        return root
+
+    candidate = (root / subdir.strip().lstrip("/\\")).resolve()
+    base = root.resolve()
+    if candidate != base and base not in candidate.parents:
+        raise HTTPException(
+            status_code=400,
+            detail="subdir must stay inside the repository",
+        )
+    if not candidate.is_dir():
+        raise HTTPException(
+            status_code=422,
+            detail=f"no directory '{subdir}' in this repository",
+        )
+    return candidate
 
 
 @app.post("/scan")
@@ -226,10 +261,11 @@ def scan_repo(req: ScanRequest, request: Request) -> dict[str, Any]:
     scan_id = uuid4().hex
     try:
         with cloned_repo(req.repo_url) as root:
-            install_dependencies(root)
+            project = _resolve_subdir(Path(root), req.subdir)
+            install_dependencies(project)
             with scan_scope(_namespace_for(scan_id)), _hydra() as hydra:
                 report = scan(
-                    Path(root), hydra, max_len=req.max_len, allow_network=not req.offline
+                    project, hydra, max_len=req.max_len, allow_network=not req.offline
                 )
     except InvalidRepoUrl as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from None

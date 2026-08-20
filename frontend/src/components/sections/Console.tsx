@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useHealth } from "@/hooks/use-health";
 import { ApiOfflineNotice, ApiStatusBadge } from "@/components/console/ApiStatus";
 import { ScanForm } from "@/components/console/ScanForm";
+import { ScanHistory } from "@/components/console/ScanHistory";
 import { SummaryBar } from "@/components/console/SummaryBar";
 import { FindingsList } from "@/components/console/FindingsList";
 import { BlastPanel } from "@/components/console/BlastPanel";
@@ -28,9 +29,14 @@ const TABS: { id: Tab; label: string }[] = [
  * exact canonical keys and refuses to guess -- correct for a public API,
  * unusable as a UI unless the keys are offered rather than remembered.
  */
+/** Scans kept per session. Past this the tab strip stops being scannable, and
+ *  each report is a whole graph payload held in memory. */
+const MAX_HISTORY = 8;
+
 export function Console({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("scan");
-  const [report, setReport] = useState<ScanReport | null>(null);
+  const [reports, setReports] = useState<ScanReport[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [blastSpec, setBlastSpec] = useState("");
   const [why, setWhy] = useState<{ source: string; target: string }>({
     source: "",
@@ -38,7 +44,23 @@ export function Console({ onBack }: { onBack: () => void }) {
   });
 
   const health = useHealth();
+  const report = reports[activeIndex] ?? null;
   const summary = useMemo(() => (report ? summarise(report) : null), [report]);
+
+  // Newest first, and selected — the thing you just asked for is the thing you
+  // want to be looking at.
+  const addReport = useCallback((r: ScanReport) => {
+    setReports((prev) => [r, ...prev].slice(0, MAX_HISTORY));
+    setActiveIndex(0);
+  }, []);
+
+  const removeReport = useCallback(
+    (i: number) => {
+      setReports((prev) => prev.filter((_, idx) => idx !== i));
+      setActiveIndex((cur) => (i < cur ? cur - 1 : Math.min(cur, reports.length - 2)));
+    },
+    [reports.length],
+  );
 
   const askWhy = useCallback((source: string, target: string) => {
     setWhy({ source, target });
@@ -108,11 +130,21 @@ export function Console({ onBack }: { onBack: () => void }) {
         <main className="flex flex-col gap-7">
           {tab === "scan" && (
             <>
-              <ScanForm onResult={setReport} disabled={offline} />
+              <ScanForm
+                onResult={addReport}
+                disabled={offline}
+                compact={reports.length > 0}
+              />
+
+              <ScanHistory
+                reports={reports}
+                activeIndex={activeIndex}
+                onSelect={setActiveIndex}
+                onRemove={removeReport}
+              />
 
               {report && summary && (
                 <>
-                  <div className="h-px bg-border" />
                   <SummaryBar report={report} summary={summary} />
 
                   <div className="flex flex-wrap items-center gap-2">

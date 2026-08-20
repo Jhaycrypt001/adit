@@ -47,6 +47,8 @@ export async function getHealth(): Promise<{ status: string }> {
 }
 
 export interface ScanOptions {
+  /** Path inside the repo holding package.json, for monorepos. */
+  subdir?: string;
   maxLen?: number;
   offline?: boolean;
   signal?: AbortSignal;
@@ -58,11 +60,28 @@ export async function scanRepo(repoUrl: string, opts: ScanOptions = {}): Promise
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       repo_url: repoUrl,
+      subdir: opts.subdir?.trim() || null,
       max_len: opts.maxLen ?? 12,
       offline: opts.offline ?? false,
     }),
     signal: opts.signal,
   });
+}
+
+/**
+ * Pull the suggested subdirectories out of the API's "wrong root" message.
+ *
+ * The server already worked out where the npm projects are; re-deriving that
+ * in the client would mean a second clone. Parsing its sentence is the cheap
+ * way to turn the error into one-click buttons.
+ */
+export function suggestedSubdirs(detail: string): string[] {
+  const m = /found one in:\s*([^.]+?)(?:\s*\(\+\d+ more\))?\.\s*Re-run/i.exec(detail);
+  if (!m) return [];
+  return m[1]
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 export async function getBlastRadius(

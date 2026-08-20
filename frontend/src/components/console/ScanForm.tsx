@@ -1,18 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiError, scanRepo } from "@/lib/api";
+import { ApiError, scanRepo, suggestedSubdirs } from "@/lib/api";
 import type { ScanReport } from "@/lib/types";
 
 interface Props {
   onResult: (report: ScanReport) => void;
   disabled?: boolean;
+  /** Collapsed once results exist, so the dashboard is what you see first. */
+  compact?: boolean;
 }
 
 const EXAMPLES = [
-  { label: "expressjs/express", url: "https://github.com/expressjs/express" },
-  { label: "sindresorhus/got", url: "https://github.com/sindresorhus/got" },
+  { label: "expressjs/express", url: "https://github.com/expressjs/express", subdir: "" },
+  { label: "sindresorhus/got", url: "https://github.com/sindresorhus/got", subdir: "" },
+  {
+    label: "Jhaycrypt001/adit — frontend",
+    url: "https://github.com/Jhaycrypt001/adit",
+    subdir: "frontend",
+  },
 ];
 
-/** Rough stages, for a progress line during a request that has no streaming. */
 const STAGES = [
   "cloning the repository",
   "installing dependencies (--ignore-scripts)",
@@ -23,17 +29,17 @@ const STAGES = [
   "traversing",
 ];
 
-export function ScanForm({ onResult, disabled = false }: Props) {
+export function ScanForm({ onResult, disabled = false, compact = false }: Props) {
   const [repoUrl, setRepoUrl] = useState("");
+  const [subdir, setSubdir] = useState("");
+  const [open, setOpen] = useState(!compact);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [stage, setStage] = useState(0);
   const [seconds, setSeconds] = useState(0);
   const abort = useRef<AbortController | null>(null);
 
-  // `/scan` is one long synchronous request with no progress channel. Rather
-  // than invent a fake percentage, this shows elapsed time and names the stage
-  // the pipeline is most likely in -- clearly a guide, not a measurement.
   useEffect(() => {
     if (!loading) return;
     const started = Date.now();
@@ -47,20 +53,40 @@ export function ScanForm({ onResult, disabled = false }: Props) {
 
   useEffect(() => () => abort.current?.abort(), []);
 
+  // Collapse on the transition into compact, not inside submit(): at the moment
+  // the first scan is submitted there are still zero results, so `compact` is
+  // false and a collapse there would never fire. Tracking the edge also means
+  // re-opening it by hand afterwards sticks.
+  const wasCompact = useRef(compact);
+  useEffect(() => {
+    if (compact && !wasCompact.current) setOpen(false);
+    wasCompact.current = compact;
+  }, [compact]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuggestions([]);
     setStage(0);
     setSeconds(0);
     abort.current = new AbortController();
     try {
-      onResult(await scanRepo(repoUrl.trim(), { signal: abort.current.signal }));
+      const report = await scanRepo(repoUrl.trim(), {
+        subdir,
+        signal: abort.current.signal,
+      });
+      onResult(report);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         setError("Scan cancelled. The server may still be finishing it.");
+      } else if (err instanceof ApiError) {
+        setError(err.message);
+        // The server names the subdirectories it found; make them clickable
+        // rather than making the user retype one.
+        setSuggestions(suggestedSubdirs(err.message));
       } else {
-        setError(err instanceof ApiError ? err.message : "scan failed");
+        setError("scan failed");
       }
     } finally {
       setLoading(false);
@@ -68,8 +94,25 @@ export function ScanForm({ onResult, disabled = false }: Props) {
     }
   }
 
+  if (compact && !open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={disabled}
+        className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card/40 px-4 py-3 text-left transition hover:border-primary/50 disabled:opacity-50"
+      >
+        <span className="text-sm font-medium">Scan another repository</span>
+        <span className="text-xs text-muted-foreground">+</span>
+      </button>
+    );
+  }
+
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4">
+    <form
+      onSubmit={submit}
+      className={compact ? "flex flex-col gap-4 rounded-xl border border-border bg-card/40 p-4" : "flex flex-col gap-4"}
+    >
       <div className="flex flex-col gap-2">
         <label htmlFor="scan-url" className="text-sm font-medium">
           GitHub repository URL
@@ -84,11 +127,24 @@ export function ScanForm({ onResult, disabled = false }: Props) {
           onChange={(e) => setRepoUrl(e.target.value)}
           className="rounded-lg border border-input bg-background px-3 py-2.5 font-mono text-sm outline-none transition focus:border-primary/60 focus:ring-1 focus:ring-primary/40 disabled:opacity-50"
         />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor="scan-subdir" className="text-sm font-medium">
+          Subfolder <span className="font-normal text-muted-foreground">(optional)</span>
+        </label>
+        <input
+          id="scan-subdir"
+          disabled={loading || disabled}
+          placeholder="frontend"
+          value={subdir}
+          onChange={(e) => setSubdir(e.target.value)}
+          className="rounded-lg border border-input bg-background px-3 py-2.5 font-mono text-sm outline-none transition focus:border-primary/60 focus:ring-1 focus:ring-primary/40 disabled:opacity-50"
+        />
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Public repositories only, over https. The URL is validated against an
-          allowlist before anything is cloned, and dependencies install with{" "}
-          <span className="font-mono text-foreground">--ignore-scripts</span> so the
-          repository&rsquo;s own code never runs.
+          Only needed when <span className="font-mono text-foreground">package.json</span> is
+          not at the repository root — a monorepo, or a frontend beside a backend in
+          another language.
         </p>
       </div>
 
@@ -98,10 +154,13 @@ export function ScanForm({ onResult, disabled = false }: Props) {
         </span>
         {EXAMPLES.map((ex) => (
           <button
-            key={ex.url}
+            key={ex.label}
             type="button"
             disabled={loading || disabled}
-            onClick={() => setRepoUrl(ex.url)}
+            onClick={() => {
+              setRepoUrl(ex.url);
+              setSubdir(ex.subdir);
+            }}
             className="rounded-full border border-border px-3 py-1 font-mono text-[11px] text-muted-foreground transition hover:border-primary/50 hover:text-foreground disabled:opacity-50"
           >
             {ex.label}
@@ -126,6 +185,15 @@ export function ScanForm({ onResult, disabled = false }: Props) {
             Cancel
           </button>
         )}
+        {compact && !loading && (
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="text-xs text-muted-foreground transition hover:text-foreground"
+          >
+            Close
+          </button>
+        )}
       </div>
 
       {loading && (
@@ -146,16 +214,36 @@ export function ScanForm({ onResult, disabled = false }: Props) {
           </div>
           <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
             A real repository usually takes 40&ndash;90 seconds. Stages are indicative:
-            the endpoint returns one response at the end rather than streaming
-            progress, so this is elapsed time, not measured completion.
+            the endpoint returns one response at the end rather than streaming progress.
           </p>
         </div>
       )}
 
       {error && (
-        <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-          {error}
-        </p>
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+          <p className="text-sm text-destructive">{error}</p>
+          {suggestions.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                Scan instead
+              </span>
+              {suggestions.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => {
+                    setSubdir(s);
+                    setError(null);
+                    setSuggestions([]);
+                  }}
+                  className="rounded-full border border-border px-3 py-1 font-mono text-[11px] text-foreground transition hover:border-primary/50"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </form>
   );

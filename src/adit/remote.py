@@ -154,6 +154,36 @@ def cloned_repo(url: str) -> Iterator[Path]:
             log.error("failed to remove temp clone dir %s", tmpdir, exc_info=True)
 
 
+#: How many candidate subdirectories to name in a "wrong root" error before
+#: truncating. Enough to be actionable, short enough to stay one line.
+_SUGGEST_LIMIT = 5
+
+#: Directories that never contain the project being scanned, and would
+#: otherwise dominate the suggestions on any repo that has been installed.
+_SKIP_DIRS = {"node_modules", ".git", "dist", "build", "vendor", ".venv", "__pycache__"}
+
+
+def _find_npm_projects(root: Path, *, max_depth: int = 2) -> list[str]:
+    """Relative paths of directories under `root` that hold a package.json.
+
+    Shallow on purpose: a package.json six levels down is a fixture or a
+    vendored copy far more often than it is the thing the caller meant.
+    """
+    out: list[str] = []
+    for path in sorted(root.rglob("package.json")):
+        try:
+            rel = path.parent.relative_to(root)
+        except ValueError:  # pragma: no cover -- rglob cannot leave root
+            continue
+        parts = rel.parts
+        if not parts or len(parts) > max_depth:
+            continue
+        if any(p in _SKIP_DIRS for p in parts):
+            continue
+        out.append("/".join(parts))
+    return out
+
+
 def install_dependencies(root: Path) -> None:
     """Populate `node_modules` (and a lockfile, if the repo doesn't commit
     one) for a freshly cloned repo -- WITHOUT running any of its install or
@@ -190,6 +220,19 @@ def install_dependencies(root: Path) -> None:
     error; not depending on that behaviour is more robust than chasing it.
     """
     if not (root / "package.json").is_file():
+        # A repository whose npm project lives one level down -- a monorepo, or
+        # a frontend beside a backend in another language -- is the common case
+        # here, not a malformed repo. Saying only "not an npm project" sends the
+        # caller away when the answer is one directory below, so the ones we can
+        # see get named.
+        found = _find_npm_projects(root)
+        if found:
+            listed = ", ".join(found[:_SUGGEST_LIMIT])
+            more = f" (+{len(found) - _SUGGEST_LIMIT} more)" if len(found) > _SUGGEST_LIMIT else ""
+            raise DependencyInstallFailed(
+                f"no package.json at the repository root, but found one in: "
+                f"{listed}{more}. Re-run with that path as `subdir`."
+            )
         raise DependencyInstallFailed("no package.json found -- not an npm project")
     has_lockfile = (root / "package-lock.json").is_file()
     npm = _resolve("npm")
