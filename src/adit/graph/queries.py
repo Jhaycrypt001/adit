@@ -235,7 +235,7 @@ class Queries:
         way to write "walk backward twice" -- executes without error but
         silently returns zero rows; confirmed with scripts/chain_direction.py.
         Nothing in the engine's error text would have caught that, which is why
-        the paired positive/negative test in test_deps_e2e.py exists.
+        this direction is spelled out here rather than left to be rediscovered.
         """
         return self.hydra.run(
             f"MATCH (rel {{id: {node_id(release_key)}}})<-[:{Edge.OBJECT.value}]-"

@@ -3,8 +3,8 @@ to the public internet -- not just to localhost.
 
 CLI, MCP, and this API all wrap the same three things: `scan()`, `Queries`,
 and `render.to_json()`. None of them contain logic of their own -- a route
-handler here is a JSON-in-JSON-out shim over a function already exercised by
-`test_mcp_server.py`, so the payload shape is not speculative.
+handler here is a JSON-in-JSON-out shim over the same functions the CLI runs,
+so the payload shape is not speculative.
 
     adit-api                              uvicorn on 0.0.0.0:8420
     POST /scan   {"repo_url": "https://github.com/owner/repo"}
@@ -30,12 +30,23 @@ nothing else can guess, and the directory is always removed afterward --
 HydraDB rejects any graph-database name it wasn't started with (confirmed
 live: `session(database="x")` fails with "unknown graph database"), so
 per-request engine-level databases are not an option this engine offers.
-Isolation instead happens through `graph.ids.scan_scope()`: every scan's ids
-are hashed with a random namespace folded in, so two scans of the identical
-repo cannot collide, and nothing outside a scan's own response ever learns
-its namespace -- discoverability is what's prevented, not persistence; the
-data is not deleted, HydraDB has no expiry mechanism, and that is a known,
-stated limitation rather than a claim this file doesn't make.
+Isolation instead happens through `graph.ids.scan_scope()`, on two properties
+rather than one:
+
+  * `id` -- every node id is hashed with the scan's namespace folded in, which
+    isolates every query anchored on `{id: ...}` automatically.
+  * `skey` -- `algo.MSpaths` matches a *string* property, so it cannot use the
+    id. Pointing it at the bare canonical `key` meant a traversal matched every
+    tenant that had ever written that key: a scan with no edges of its own
+    could be handed a complete call path assembled from another scan's nodes.
+    `graph.ids.scoped_key()` exists for exactly this, and it is the only
+    property traversal is allowed to match on.
+
+What this does and does not buy: two scans cannot see or reach each other's
+subgraphs, and nothing outside a scan's own response ever learns its namespace.
+The data is still not deleted -- HydraDB has no expiry mechanism, so storage
+grows without bound across scans. That is a known, stated limitation, and the
+next thing a real deployment has to solve.
 
 ## Trust boundary
 
@@ -62,7 +73,13 @@ from pydantic import BaseModel, Field
 
 from .graph import Edge, Hydra, Queries
 from .graph.ids import release_key, scan_scope
-from .remote import CloneFailed, DependencyInstallFailed, InvalidRepoUrl, cloned_repo, install_dependencies
+from .remote import (
+    CloneFailed,
+    DependencyInstallFailed,
+    InvalidRepoUrl,
+    cloned_repo,
+    install_dependencies,
+)
 from .render import to_json
 from .scan import scan
 

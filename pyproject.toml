@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.5"]
+dev = ["ruff>=0.5"]
 
 [project.scripts]
 adit = "adit.cli:main"
@@ -34,20 +34,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/adit"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-markers = [
-    # Tests needing a live HydraDB on bolt://127.0.0.1:7687.
-    #   docker compose up -d
-    "integration: requires a running HydraDB",
-    # Real git clone + real npm install -- can take minutes, not seconds.
-    "slow: real network I/O, run deliberately rather than on every save",
-]
-
 [tool.ruff]
 line-length = 96
 target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM", "S"]
-ignore = ["S101"]  # assert is fine in tests

@@ -27,9 +27,9 @@ import shutil
 import stat
 import subprocess
 import tempfile
-from functools import lru_cache
 from collections.abc import Iterator
 from contextlib import contextmanager
+from functools import cache
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -56,7 +56,7 @@ class DependencyInstallFailed(RuntimeError):
     """`npm ci`/`npm install` failed (bad manifest, network, timeout)."""
 
 
-@lru_cache(maxsize=None)
+@cache
 def _resolve(executable: str) -> str:
     """Find `executable` the way the OS actually resolves it, extension and
     all -- `subprocess.run([executable, ...])` without `shell=True` calls

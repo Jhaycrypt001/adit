@@ -61,7 +61,7 @@ def parse_date(text: str) -> int:
     for fmt in _DATE_FORMATS:
         try:
             return int(datetime.datetime.strptime(text, fmt).replace(
-                tzinfo=datetime.timezone.utc
+                tzinfo=datetime.UTC
             ).timestamp())
         except ValueError:
             continue

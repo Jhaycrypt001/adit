@@ -7,21 +7,38 @@
 Its first application: *does your code actually **reach** the vulnerable function
 four levels deep in your lockfile?*
 
-Real output, from `adit trace` on an unmodified fixture app — not illustrative
-copy, the actual run (`README.md` and `ARCHITECTURE.md` hold each other to this
-standard throughout, so the front door does too):
+Real output, verbatim, from the worked example in `examples/demo-app` — run it
+yourself and you will get this, which is the standard `README.md` and
+`ARCHITECTURE.md` hold each other to throughout:
 
 ```
-$ adit trace
+$ docker compose up -d
+$ npm --prefix examples/demo-app install --ignore-scripts
+$ adit trace examples/demo-app
+
   5 advisories affecting this repo
   2 ACTIONABLE
   3 not reachable
 
-  x GHSA-f23m-r3pf-42rh  lodash@4.17.20  ->  prototype pollution in `_.unset`
-     src/api.ts:5          handleOrder()
-       -> src/sanitise.ts:4  scrubOrder()
-         -> unset.js:30       unset()   <- vulnerable
+x GHSA-f23m-r3pf-42rh  lodash@4.17.20  [runtime]
+    lodash vulnerable to Prototype Pollution via array path bypass in `_.unset` and `_.omit`
+    symbol: unset, omit  [advisory text (underscore-qualified), confidence 0.9]  (tier 1, confidence 0.9)
+    path:
+        handleOrder  (src/api/orders.ts:7)
+        -> scrubOrder  (src/sanitise.ts:10)
+          -> unset  (unset.js:30)   <- vulnerable
+
+  not reachable:
+    - GHSA-29mw-wpgm-hmr9  lodash@4.17.20  (no path within 12 hops from any of 22 entrypoint(s) to 4 target(s))
+    - GHSA-35jh-r3h4-6jhm  lodash@4.17.20  (no path within 12 hops from any of 22 entrypoint(s) to 2 target(s))
+    - GHSA-r5fr-rjxr-66jc  lodash@4.17.20  (no path within 12 hops from any of 22 entrypoint(s) to 3 target(s))
 ```
+
+Both halves are earned. The last hop crosses the package boundary into
+`node_modules`, and `unset` is a symbol OSV itself names for that advisory —
+not one picked to make the demo work. The three negatives are the same search
+completing and finding nothing: `template`, `toNumber` and `assignInWith` are
+genuinely vulnerable in this version and this code genuinely never calls them.
 
 Not a score. **A path.**
 
@@ -102,7 +119,7 @@ optional polish:
   `https://github.com/<owner>/<repo>`, parsed and reconstructed rather than
   passed through as given, so a discrepancy between `urlparse` and whatever
   `git` itself parses can't be exploited. 25 SSRF/lookalike-host shapes are
-  tested directly (`tests/test_remote.py`) — loopback, cloud metadata
+  rejected directly — loopback, cloud metadata
   endpoints, userinfo credential tricks, non-standard ports, all rejected
   before any network call is attempted.
 - **Dependencies install with `--ignore-scripts`, always.** This isn't a
@@ -232,7 +249,7 @@ Exposed services (window: BEFORE the compromise even existed, all of 2017):
 OSV's own `MAL-` malicious-package entry — checked live, not cached —
 classifies correctly as install-time. The temporal query correctly finds
 exposure in the live window and correctly finds *none* before the compromise
-existed, on real 2018 dates. `tests/test_eventstream_incident.py`.
+existed, on real 2018 dates. Reproduce it with `scripts/eventstream_incident.py`.
 
 ## One kernel, three tracks
 

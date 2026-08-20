@@ -389,7 +389,7 @@ Extraction is real and narrow, not fabricated to fit the benchmark: one
 pattern family (a named quantity with a value and optional unit) run against
 raw session text, with **no access to the dataset's own answer-key labels** --
 using those would make the demonstration circular. Verified against a real
-downloaded item (`tests/fixtures/longmemeval_sample.json`, a genuine
+downloaded item (`data/longmemeval_sample.json`, a genuine
 knowledge-update case: a runner states a personal-best 5K time of 27:12,
 then a new personal best of 25:50 two sessions later). The extractor labels
 the subject "time", not "personal best" -- the words "personal best" and the
@@ -453,9 +453,9 @@ gives the wrong answer:
 
 `ORDER BY valid_from DESC LIMIT 1` alone would pick the meeting transcript —
 it is the most recent. `best_claim()` correctly picks the document, because
-tier is checked first. `test_authority_beats_recency_not_vice_versa` asserts
-this is not a coincidence: it fails loudly if the ranking ever regresses to
-plain recency.
+tier is checked first. The fixture is deliberately rigged so that a
+recency-only sort would pick the wrong source, which is what makes the
+ordering demonstrable rather than incidental.
 
 ## 7. Stated limitations
 

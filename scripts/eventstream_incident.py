@@ -12,7 +12,7 @@ running it through the exact same `emit_lockfile()` / `Queries` code every
 other scan in this project uses -- no demo-only code path.
 
 The correctness claims here are pinned down as real tests in
-tests/test_eventstream_incident.py; this script exists for narrated demo
+the incident is reproducible from this script; it exists for narrated demo
 output, not as the thing that proves them.
 
     py scripts/eventstream_incident.py

@@ -2,7 +2,7 @@
 
 from .driver import MAX_BATCH, Hydra
 from .ids import IdRegistry, node_id
-from .queries import Queries, ReachPath, Reachability
+from .queries import Queries, Reachability, ReachPath
 from .schema import (
     FOREVER,
     AdvisoryClass,
