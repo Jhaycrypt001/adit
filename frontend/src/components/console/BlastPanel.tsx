@@ -46,7 +46,7 @@ export function BlastPanel({ scanId, summary, initialSpec = "" }: Props) {
   return (
     <div className="flex flex-col gap-6">
       <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
-        For an install-time compromise, reachability is meaningless &mdash; the payload
+        For an install-time compromise, reachability is meaningless: the payload
         ran at <span className="font-mono text-xs text-foreground">npm install</span>{" "}
         whether anything imported it or not. This is the query that matters instead:
         the transitive dependent set, and which of your services actually resolved it.
@@ -120,7 +120,7 @@ export function BlastPanel({ scanId, summary, initialSpec = "" }: Props) {
           </p>
         ) : (
           <p className="text-[11px] text-muted-foreground">
-            No scan in this session &mdash; this queries the unscoped namespace, which
+            No scan in this session, so this queries the unscoped namespace, which
             is empty on a hosted deployment. Run a scan first for meaningful results.
           </p>
         )}
@@ -154,7 +154,7 @@ export function BlastPanel({ scanId, summary, initialSpec = "" }: Props) {
             <p className="rounded-lg border border-border bg-muted/20 p-4 text-sm leading-relaxed text-muted-foreground">
               Nothing in this scan transitively depends on{" "}
               <span className="font-mono text-foreground">{result.package}</span>. That is
-              a real answer, not an empty state &mdash; the traversal ran and found no
+              a real answer, not an empty state. The traversal ran and found no
               path.
             </p>
           )}

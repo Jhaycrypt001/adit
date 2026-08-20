@@ -28,7 +28,7 @@ export interface Segment {
 /**
  * One horizontal stacked bar: the whole advisory set, split by outcome.
  *
- * A 2px surface gap sits between segments so adjacent fills never touch — the
+ * A 2px surface gap sits between segments so adjacent fills never touch. The
  * spacer is what keeps two similar hues readable for a colourblind reader, and
  * is why the validated palette's ΔE-7.9 pair is allowed here at all.
  */
@@ -40,7 +40,7 @@ export function SplitBar({ segments }: { segments: Segment[] }) {
   if (total === 0) {
     return (
       <p className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
-        Nothing to split — no advisories affect this repository.
+        Nothing to split: no advisories affect this repository.
       </p>
     );
   }
@@ -64,7 +64,7 @@ export function SplitBar({ segments }: { segments: Segment[] }) {
         ))}
       </div>
 
-      {/* Legend doubles as the direct labels — identity is never colour alone. */}
+      {/* Legend doubles as the direct labels, so identity is never colour alone. */}
       <ul className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
         {shown.map((s) => (
           <li key={s.label} className="flex items-center gap-2">
@@ -280,7 +280,7 @@ export function RadiusGraph({
       </svg>
       <p className="text-center text-xs text-muted-foreground">
         <span className="font-mono text-foreground">{centre}</span>
-        {" — "}
+        {" · "}
         {dependents.length} transitive dependent{dependents.length === 1 ? "" : "s"}
         {hidden > 0 && `, ${shown.length} drawn`}
       </p>

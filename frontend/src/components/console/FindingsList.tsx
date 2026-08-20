@@ -125,7 +125,7 @@ function FindingCard({
                 Symbol resolution
               </p>
               <p className="mt-1.5 font-mono text-xs text-foreground">
-                {finding.symbol.names.join(", ") || "—"}
+                {finding.symbol.names.join(", ") || "none"}
               </p>
               <p className="mt-1 text-[11px] text-muted-foreground">
                 tier {finding.symbol.tier} · confidence{" "}

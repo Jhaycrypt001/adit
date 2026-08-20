@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { CopyButton } from "@/components/console/CopyButton";
+import { Logo } from "@/components/ui/logo";
 
 const REPO = "https://github.com/Jhaycrypt001/adit";
 
@@ -58,7 +59,7 @@ docker compose up -d          # HydraDB :7687, adit-api :8420
 pip install -e .`}</Code>
         <P>
           Then run it against the worked example, which is built so both halves of
-          an answer are visible — one advisory your code can reach, three it cannot.
+          an answer are visible: one advisory your code can reach, three it cannot.
         </P>
         <Code>{`npm --prefix examples/demo-app install --ignore-scripts
 adit trace examples/demo-app`}</Code>
@@ -125,8 +126,8 @@ adit why <source> <target>     # explain one reachability answer
         <H3>GET /why</H3>
         <P>
           Query params: <K>source</K>, <K>target</K> (both exact canonical keys),{" "}
-          <K>scan_id</K>, <K>max_len</K>. Deliberately will not resolve bare names
-          — silently matching the wrong symbol over a public surface is worse than
+          <K>scan_id</K>, <K>max_len</K>. Deliberately will not resolve bare names.
+          Silently matching the wrong symbol over a public surface is worse than
           requiring precision. Keys come from a prior scan&rsquo;s{" "}
           <K>paths[].key</K>.
         </P>
@@ -136,7 +137,7 @@ adit why <source> <target>     # explain one reachability answer
         </P>
         <H3>Limits</H3>
         <P>
-          5 scans per 10 minutes per IP, and 4 concurrent scans per process — past
+          5 scans per 10 minutes per IP, and 4 concurrent scans per process. Past
           that it sheds with <K>503</K> and a <K>Retry-After</K> rather than
           starving the whole API, since a scan is slow and synchronous.
         </P>
@@ -149,7 +150,7 @@ adit why <source> <target>     # explain one reachability answer
     body: (
       <>
         <P>
-          <K>adit-mcp</K> speaks stdio MCP. Five tools, kept deliberately few —
+          <K>adit-mcp</K> speaks stdio MCP. Five tools, kept deliberately few,
           teams routinely lose a fifth to two-thirds of a context window to tool
           schemas before an agent does any real work.
         </P>
@@ -178,21 +179,21 @@ adit why <source> <target>     # explain one reachability answer
         </P>
         <H3>Ingest</H3>
         <P>
-          <strong className="text-foreground">A · code</strong> — tree-sitter over
+          <strong className="text-foreground">A · code</strong>: tree-sitter over
           TS/JS, ESM and CommonJS, into Module / Symbol / CALLS / IMPORTS.
           <br />
-          <strong className="text-foreground">B · deps</strong> — lockfile to a
+          <strong className="text-foreground">B · deps</strong>: lockfile to a
           resolved release graph, each edge carrying the window that version was
           resolved in.
           <br />
-          <strong className="text-foreground">C · advisories</strong> — OSV in one
+          <strong className="text-foreground">C · advisories</strong>: OSV in one
           batch call, classified install-time or runtime.
           <br />
-          <strong className="text-foreground">D · the join</strong> — resolve the
+          <strong className="text-foreground">D · the join</strong>: resolve the
           import specifier, find the package entry point, parse it lazily, bind the
           export to its internal symbol. This is the hard part.
           <br />
-          <strong className="text-foreground">E · identity</strong> — maintainer and
+          <strong className="text-foreground">E · identity</strong>: maintainer and
           registry provenance.
         </P>
         <H3>The two attack classes</H3>
@@ -202,7 +203,7 @@ adit why <source> <target>     # explain one reachability answer
           compromise the payload already ran at <K>npm install</K>, so reachability
           is meaningless and blast radius plus the temporal window is everything.
           For an ordinary <strong className="text-foreground">runtime</strong> CVE
-          blast radius is noise — everyone depends on lodash — and reachability is
+          blast radius is noise, everyone depends on lodash, and reachability is
           everything.
         </P>
         <H3>Three answers, not two</H3>
@@ -248,7 +249,7 @@ adit why <source> <target>     # explain one reachability answer
           <strong className="text-foreground">HydraDB&rsquo;s local storage backend</strong>{" "}
           can start rejecting every write after sustained use, logging{" "}
           <K>PutMode::Update not yet implemented by LocalFileSystem</K>. It is an
-          upstream limitation of its dev-mode storage path, not an Adit defect —{" "}
+          upstream limitation of its dev-mode storage path, not an Adit defect,{" "}
           <K>docker compose down -v &amp;&amp; docker compose up -d</K> clears it.
         </P>
       </>
@@ -261,7 +262,7 @@ adit why <source> <target>     # explain one reachability answer
       <>
         <H3>Frontend</H3>
         <P>
-          A static Vite build — any static host works. On Vercel, set the root
+          A static Vite build. Any static host works. On Vercel, set the root
           directory to <K>frontend</K> and add one environment variable,{" "}
           <K>VITE_API_URL</K>, pointing at your API.
         </P>
@@ -269,7 +270,7 @@ adit why <source> <target>     # explain one reachability answer
 vercel --cwd frontend`}</Code>
         <P>
           <K>VITE_API_URL</K> is read at <em>build</em> time, so changing it means
-          redeploying rather than restarting. It also has to be <K>https</K> — a
+          redeploying rather than restarting. It also has to be <K>https</K>. A
           browser blocks plain-HTTP requests from an HTTPS page, and the console
           reports that as an unreachable API with no obvious cause.
         </P>
@@ -278,8 +279,8 @@ vercel --cwd frontend`}</Code>
           The API clones repositories, runs <K>npm install</K>, and needs a
           persistent volume for HydraDB. That rules out serverless: a scan takes
           40&ndash;90 seconds and needs disk, and functions have neither. Use a
-          container host — Railway, Fly.io, Render, or any VPS running the compose
-          file as-is — with two services, HydraDB and the API.
+          container host, Railway, Fly.io, Render, or any VPS running the compose
+          file as-is, with two services, HydraDB and the API.
         </P>
         <P>
           The API reads <K>PORT</K> if the platform injects one, so it needs no
@@ -346,7 +347,10 @@ export function Docs({ onBack }: { onBack: () => void }) {
           >
             ← Back
           </button>
-          <h1 className="text-3xl font-semibold tracking-tight">Documentation</h1>
+          <h1 className="flex items-center gap-3 text-3xl font-semibold tracking-tight">
+            <Logo className="h-8 w-8 text-primary" />
+            Documentation
+          </h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
             Adit is a reachability engine. Everything below is one question asked
             over a graph: does a path exist from A to B, and what is it?

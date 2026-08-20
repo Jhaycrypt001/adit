@@ -19,7 +19,7 @@ const STAGES = [
     key: "C",
     name: "Advisories",
     detail:
-      "OSV in one batch call, then classified install-time or runtime — the fork that inverts the whole analysis.",
+      "OSV in one batch call, then classified install-time or runtime: the fork that inverts the whole analysis.",
   },
   {
     key: "D",
@@ -46,7 +46,7 @@ export function HowItWorks() {
       <div className="mx-auto grid max-w-6xl gap-16 lg:grid-cols-[0.85fr_1fr] lg:items-start lg:gap-20">
         {/* The shader stands in for the traversal itself: one signal running the
             length of the graph. Purely atmospheric, and it says so by carrying
-            no data — a chart that looked real but wasn't would be worse. */}
+            no data. A chart that looked real but wasn't would be worse. */}
         <div className="flex flex-col items-center lg:sticky lg:top-24">
           <SiriWave
             variant="wave"

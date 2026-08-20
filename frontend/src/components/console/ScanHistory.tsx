@@ -5,7 +5,7 @@ import type { ScanReport } from "@/lib/types";
  *
  * Results used to render one after another, so a second scan pushed the first
  * down the page and a fifth made the console unusable. Each scan is now a tab
- * and only the selected one is drawn — comparing two runs is a click, and the
+ * and only the selected one is drawn. Comparing two runs is a click, and the
  * dashboard stays the same height no matter how many you do.
  */
 export function ScanHistory({
@@ -43,7 +43,7 @@ export function ScanHistory({
                 type="button"
                 onClick={() => onSelect(i)}
                 className="flex items-center gap-2"
-                title={`${r.package} — ${r.headline}`}
+                title={`${r.package} · ${r.headline}`}
               >
                 <span
                   aria-hidden

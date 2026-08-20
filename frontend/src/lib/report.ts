@@ -19,7 +19,7 @@ export interface ReportSummary {
 export interface SymbolOption {
   key: string;
   label: string;
-  /** True for the last node of a path — i.e. a vulnerable symbol. */
+  /** True for the last node of a path, i.e. a vulnerable symbol. */
   isTarget: boolean;
 }
 
@@ -29,7 +29,7 @@ const SEVERITY_ORDER = ["CRITICAL", "HIGH", "MODERATE", "MEDIUM", "LOW", "UNKNOW
  * OSV's `severity` is usually a CVSS *vector*, not a word.
  *
  * Rendering the raw string produced chips reading
- * `cvss:4.0/av:n/ac:l/at:n/pr:n/...` — accurate and unreadable. Computing a
+ * `cvss:4.0/av:n/ac:l/at:n/pr:n/...`, accurate and unreadable. Computing a
  * qualitative rating from the vector is not something to fake: v3.1 scoring is
  * implementable but v4.0 is materially different, and a wrong severity on a
  * security tool is worse than no severity. So a vector is labelled by its CVSS

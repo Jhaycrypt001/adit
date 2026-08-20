@@ -28,7 +28,7 @@ const COMPARISON = [
     label: "Relational",
     verdict: "Possible, and miserable",
     detail:
-      "Recursive CTEs across two heterogeneous graphs — the intra-repo call graph and the inter-package dependency graph — joined at the symbol boundary, over millions of edges.",
+      "Recursive CTEs across two heterogeneous graphs, the intra-repo call graph and the inter-package dependency graph, joined at the symbol boundary, over millions of edges.",
   },
   {
     label: "Graph-native",

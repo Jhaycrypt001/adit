@@ -46,7 +46,7 @@ export function ApiOfflineNotice({ health }: { health: Health }) {
             <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
               {health.baseUrl}
             </code>
-            . The backend and HydraDB run as containers &mdash; start them from the
+            . The backend and HydraDB run as containers. Start them from the
             repository root:
           </p>
 

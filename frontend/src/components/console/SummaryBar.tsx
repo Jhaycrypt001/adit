@@ -24,8 +24,8 @@ function Panel({
 /**
  * The verdict, then the evidence.
  *
- * A responder wants one number before anything else — how many of these do I
- * have to act on today — so that is a hero number, not a tile in a row of five.
+ * A responder wants one number before anything else: how many of these do I
+ * have to act on today, so that is a hero number, not a tile in a row of five.
  * `unresolved` stays its own count rather than folding into either reachable
  * bucket: it means the search never ran, and reporting it as "not reachable"
  * would claim a search that never happened.
@@ -76,7 +76,7 @@ export function SummaryBar({
             <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
               {clear
                 ? "Every advisory here was searched and none is callable from an entrypoint. That is a completed search, not an absence of data."
-                : `${summary.reachable} reachable${summary.unresolved ? `, ${summary.unresolved} unresolved` : ""} — open the findings below for the exact call paths.`}
+                : `${summary.reachable} reachable${summary.unresolved ? `, ${summary.unresolved} unresolved` : ""}. Open the findings below for the exact call paths.`}
             </p>
           </div>
           <div className="text-right">
@@ -107,7 +107,7 @@ export function SummaryBar({
           />
           <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
             Install-time advisories are answered by blast radius, not
-            reachability — the payload runs at install whether or not you call it.
+            reachability. The payload runs at install whether or not you call it.
           </p>
         </Panel>
 

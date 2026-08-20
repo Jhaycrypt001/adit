@@ -43,11 +43,11 @@ function SymbolField({
           onChange={(e) => onChange(e.target.value)}
           className="rounded-lg border border-input bg-background px-3 py-2.5 font-mono text-sm outline-none transition focus:border-primary/60 focus:ring-1 focus:ring-primary/40 disabled:opacity-50"
         >
-          <option value="">— choose a symbol from this scan —</option>
+          <option value="">choose a symbol from this scan</option>
           {options.map((o) => (
             <option key={o.key} value={o.key}>
               {o.isTarget ? "◆ " : ""}
-              {o.label} — {o.key}
+              {o.label} · {o.key}
             </option>
           ))}
         </select>
@@ -68,7 +68,7 @@ function SymbolField({
 /**
  * Explain reachability between two exact symbol keys.
  *
- * The endpoint refuses to resolve bare names — silently matching the wrong
+ * The endpoint refuses to resolve bare names. Silently matching the wrong
  * symbol over a public HTTP surface is a worse failure than making the caller
  * be precise. That is defensible for the API and hostile as a UI, so the keys
  * are offered from the scan that produced them rather than typed from memory.
@@ -114,7 +114,7 @@ export function WhyPanel({ scanId, summary, initialSource = "", initialTarget = 
     <div className="flex flex-col gap-6">
       <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
         Ask whether one symbol can reach another, and see the shortest path if it can.
-        Keys come from a scan&rsquo;s results &mdash;{" "}
+        Keys come from a scan&rsquo;s results.{" "}
         <span className="font-mono text-xs text-foreground">◆</span> marks a symbol that
         appeared as a vulnerable target.
       </p>
@@ -130,7 +130,7 @@ export function WhyPanel({ scanId, summary, initialSource = "", initialTarget = 
         <SymbolField
           id="why-source"
           label="Source symbol"
-          hint="Usually an entrypoint — an exported function or a route handler."
+          hint="Usually an entrypoint, an exported function or a route handler."
           value={source}
           onChange={setSource}
           options={entrypoints.length > 0 ? entrypoints : options}

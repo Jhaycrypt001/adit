@@ -13,7 +13,7 @@ const EXAMPLES = [
   { label: "expressjs/express", url: "https://github.com/expressjs/express", subdir: "" },
   { label: "sindresorhus/got", url: "https://github.com/sindresorhus/got", subdir: "" },
   {
-    label: "Jhaycrypt001/adit — frontend",
+    label: "Jhaycrypt001/adit /frontend",
     url: "https://github.com/Jhaycrypt001/adit",
     subdir: "frontend",
   },
@@ -143,7 +143,7 @@ export function ScanForm({ onResult, disabled = false, compact = false }: Props)
         />
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           Only needed when <span className="font-mono text-foreground">package.json</span> is
-          not at the repository root — a monorepo, or a frontend beside a backend in
+          not at the repository root: a monorepo, or a frontend beside a backend in
           another language.
         </p>
       </div>

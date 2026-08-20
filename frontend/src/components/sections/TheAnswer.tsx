@@ -50,8 +50,8 @@ export function TheAnswer() {
           <p className="mt-8 max-w-md text-[0.95rem] leading-relaxed text-muted-foreground">
             Both are searches that completed. A third answer,{" "}
             <span className="font-mono text-xs text-foreground">unresolved</span>,
-            means the search never ran because there was no symbol to search for
-            &mdash; and it is reported as itself rather than folded into
+            means the search never ran because there was no symbol to search for,
+            and it is reported as itself rather than folded into
             &ldquo;not reachable&rdquo;. Claiming a search that never happened is
             the one failure mode that would destroy trust in the tool.
           </p>
@@ -85,12 +85,12 @@ export function TheAnswer() {
                   <span className="text-muted-foreground">     prototype pollution in </span>
                   <span className="text-foreground">`_.unset`</span>
                   {"\n\n"}
-                  <span className="text-foreground">     src/api.ts:5</span>
-                  <span className="text-muted-foreground">          handleOrder()</span>
+                  <span className="text-foreground">     src/api/orders.ts:7</span>
+                  <span className="text-muted-foreground">   handleOrder()</span>
                   {"\n"}
                   <span className="text-muted-foreground">       </span>
                   <span className="text-secondary">&#8594;</span>
-                  <span className="text-foreground"> src/sanitise.ts:4</span>
+                  <span className="text-foreground"> src/sanitise.ts:10</span>
                   <span className="text-muted-foreground">  scrubOrder()</span>
                   {"\n"}
                   <span className="text-muted-foreground">         </span>
@@ -103,7 +103,7 @@ export function TheAnswer() {
             </div>
           </div>
           <figcaption className="mt-3 text-xs text-muted-foreground">
-            A real run, not illustrative copy &mdash; every frame in the repo&rsquo;s
+            A real run, not illustrative copy. Every frame in the repo&rsquo;s
             docs is held to the same standard.
           </figcaption>
         </figure>

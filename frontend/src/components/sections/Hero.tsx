@@ -1,6 +1,7 @@
 import { BlackHoleHeroSection } from "@/components/ui/blackhole-hero-section";
 import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
 import { useNarrow } from "@/hooks/use-narrow";
+import { Logo } from "@/components/ui/logo";
 
 /**
  * The hero is built around the picture rather than laid on top of it.
@@ -36,11 +37,14 @@ export function Hero({ onOpenConsole }: { onOpenConsole: () => void }) {
       >
         <div className="flex h-full min-h-[92svh] items-start px-6 pt-16 sm:px-10 md:min-h-[760px] md:items-center md:pt-0 lg:px-20">
           <div className="max-w-[36rem]">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 backdrop-blur-sm">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-white/70">
-                Reachability engine
-              </span>
+            <div className="mb-7 flex items-center gap-3">
+              <Logo className="h-9 w-9 text-primary" />
+              <div className="flex flex-col leading-none">
+                <span className="text-lg font-semibold tracking-tight text-white">Adit</span>
+                <span className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/45">
+                  Reachability engine
+                </span>
+              </div>
             </div>
 
             <h1 className="text-[2.5rem] font-light leading-[1.05] tracking-[-0.03em] text-white sm:text-6xl lg:text-[4.25rem]">
@@ -52,7 +56,7 @@ export function Hero({ onOpenConsole }: { onOpenConsole: () => void }) {
             <p className="mt-6 max-w-md text-[0.95rem] leading-relaxed text-white/60 md:mt-7">
               Your lockfile has 47 advisories. Three of them are callable from
               your own entrypoints. Adit walks the call graph across the package
-              boundary and shows you the path &mdash; file and line, all the way
+              boundary and shows you the path: file and line, all the way
               in. Not a score. A path.
             </p>
 
@@ -66,8 +70,10 @@ export function Hero({ onOpenConsole }: { onOpenConsole: () => void }) {
               </a>
             </div>
 
-            {/* Every number here is measured and re-runnable from scripts/ in
-                the repo -- none of them are asserted.
+            {/* Every number here is checkable against the repository. The
+                middle one used to read "172 tests" and had to change when the
+                suite was removed: a headline figure that is no longer true is
+                worse than no figure, and this is the first thing anyone reads.
 
                 The third is held back until sm: at 390px three of these wrap
                 onto a second line, which on this layout lands directly on the
@@ -75,7 +81,7 @@ export function Hero({ onOpenConsole }: { onOpenConsole: () => void }) {
             <dl className="mt-10 flex flex-wrap gap-x-8 gap-y-4 md:mt-12">
               {[
                 ["47.6×", "MSpaths vs fan-out", false],
-                ["172", "tests, no mocks", false],
+                ["3", "Cypher shapes, total", false],
                 ["0", "LLM calls on the hot path", true],
               ].map(([value, label, wideOnly]) => (
                 <div key={label as string} className={wideOnly ? "hidden sm:block" : undefined}>

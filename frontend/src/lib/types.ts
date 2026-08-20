@@ -6,7 +6,7 @@ export type AdvisoryClass = "install_time" | "runtime" | "unknown";
 
 export interface PathNode {
   /** Canonical key. The only identity `/why` and `/blast` accept, which is why
-   *  it is projected onto path nodes at all — see render.py::to_json. */
+   *  it is projected onto path nodes at all, see render.py::to_json. */
   key: string | null;
   name: string | null;
   file: string | null;

@@ -9,6 +9,7 @@ import { BlastPanel } from "@/components/console/BlastPanel";
 import { WhyPanel } from "@/components/console/WhyPanel";
 import { CopyButton } from "@/components/console/CopyButton";
 import { summarise, toPlainText } from "@/lib/report";
+import { Logo } from "@/components/ui/logo";
 import type { ScanReport } from "@/lib/types";
 
 type Tab = "scan" | "blast" | "why";
@@ -47,7 +48,7 @@ export function Console({ onBack }: { onBack: () => void }) {
   const report = reports[activeIndex] ?? null;
   const summary = useMemo(() => (report ? summarise(report) : null), [report]);
 
-  // Newest first, and selected — the thing you just asked for is the thing you
+  // Newest first, and selected. The thing you just asked for is the thing you
   // want to be looking at.
   const addReport = useCallback((r: ScanReport) => {
     setReports((prev) => [r, ...prev].slice(0, MAX_HISTORY));
@@ -99,7 +100,10 @@ export function Console({ onBack }: { onBack: () => void }) {
             >
               ← Back
             </button>
-            <h1 className="text-2xl font-semibold tracking-tight">Console</h1>
+            <h1 className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight">
+              <Logo className="h-6 w-6 text-primary" />
+              Console
+            </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Scan a repository, then ask follow-up questions about that scan.
             </p>
